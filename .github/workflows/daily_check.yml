@@ -1,0 +1,32 @@
+name: Daily Expiry Check
+
+on:
+  schedule:
+    # 每天北京时间早上 9:00 运行 (UTC 1:00)
+    - cron: '0 1 * * *'
+  # 允许你手动点击按钮触发测试
+  workflow_dispatch:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        # 安装脚本需要的库
+        run: npm install @supabase/supabase-js resend
+
+      - name: Run check script
+        # 把 GitHub 保险箱里的钥匙传给脚本
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: node .github/scripts/check_expiry.js
