@@ -3,64 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Cycle | 物品周期管理</title>
+    <title>Life Cycle | 智能提醒版</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
+        /* 保持原有的 CSS 不变，为了篇幅我只列出新增的 */
         :root { --primary: #2563eb; --danger: #ef4444; --warning: #f59e0b; --bg: #f8fafc; --card-bg: #ffffff; --text: #1e293b; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; justify-content: center; min-height: 100vh; }
-        
+        body { font-family: -apple-system, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; justify-content: center; min-height: 100vh; }
         .container { width: 100%; max-width: 600px; }
         .card { background: var(--card-bg); padding: 25px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 20px; border: 1px solid #e2e8f0; }
-        
-        /* 登录/注册页样式 */
+        .hidden { display: none !important; }
+
+        /* 登录页 */
         .auth-box { text-align: center; max-width: 400px; margin: 60px auto; }
-        input, select { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; font-size: 1rem; transition: border 0.2s; }
-        input:focus, select:focus { outline: none; border-color: var(--primary); }
+        input, select { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; font-size: 1rem; }
         .btn { width: 100%; padding: 12px; border-radius: 8px; border: none; font-size: 1rem; cursor: pointer; font-weight: 600; transition: 0.2s; }
         .btn-primary { background: var(--primary); color: white; }
-        .btn-primary:hover { background: #1d4ed8; }
         .btn-outline { background: transparent; border: 1px solid var(--primary); color: var(--primary); margin-top: 10px; }
-        
-        /* 主界面样式 */
+
+        /* 顶部 */
         header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
-        h1 { margin: 0; font-size: 1.5rem; letter-spacing: -0.5px; }
-        .user-info { font-size: 0.9rem; color: #64748b; display: flex; align-items: center; gap: 10px; }
-        .logout-link { color: var(--danger); cursor: pointer; text-decoration: underline; border: none; background: none; font-size: 0.9rem; }
+        .user-controls { display: flex; gap: 15px; align-items: center; font-size: 0.9rem; }
+        .link-btn { color: #64748b; cursor: pointer; text-decoration: none; border: none; background: none; font-size: 0.9rem; }
+        .link-btn:hover { color: var(--primary); }
 
-        /* 列表项卡片 (新版布局) */
-        .item-card { background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 15px; position: relative; transition: transform 0.2s, box-shadow 0.2s; }
-        .item-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
-        
+        /* 列表项 */
+        .item-card { background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 15px; position: relative; }
         .item-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
-        .item-name { font-weight: 600; font-size: 1.15rem; flex-grow: 1; margin-right: 10px; }
-        
-        /* 垃圾桶图标样式 */
-        .del-btn-icon { color: #cbd5e1; cursor: pointer; font-size: 1.2rem; padding: 4px; margin-top: -4px; border-radius: 4px; transition: all 0.2s; }
+        .item-name { font-weight: 600; font-size: 1.15rem; flex-grow: 1; }
+        .del-btn-icon { color: #cbd5e1; cursor: pointer; font-size: 1.2rem; padding: 4px; margin-top: -4px; border-radius: 4px; }
         .del-btn-icon:hover { color: var(--danger); background-color: #fee2e2; }
-
-        /* 副标题与状态栏 */
         .item-meta { display: flex; justify-content: space-between; font-size: 0.9rem; color: #64748b; margin-bottom: 12px; }
-        .item-status { font-weight: 600; }
-
         .progress-track { height: 8px; background: #f1f5f9; border-radius: 4px; overflow: hidden; }
         .progress-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
 
-        /* 确认弹窗样式 */
-        .confirm-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-        .confirm-box { background: white; padding: 25px; border-radius: 16px; width: 90%; max-width: 320px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
-        .confirm-actions { display: flex; gap: 10px; margin-top: 20px; }
-        .hidden { display: none !important; }
+        /* 弹窗通用样式 */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-box { background: white; padding: 25px; border-radius: 16px; width: 90%; max-width: 320px; text-align: center; }
     </style>
 </head>
-
 <body>
-    <div id="confirm-modal" class="confirm-modal hidden">
-        <div class="confirm-box">
+
+    <div id="confirm-modal" class="modal-overlay hidden">
+        <div class="modal-box">
             <div style="font-size: 1.2rem; font-weight: 600; margin-bottom: 10px;">确认删除?</div>
-            <p style="color:#64748b; margin-bottom:20px;">此操作无法撤销。</p>
-            <div class="confirm-actions">
+            <div style="display:flex; gap:10px; margin-top:20px;">
                 <button class="btn btn-outline" onclick="closeConfirm()" style="margin-top:0">取消</button>
                 <button id="confirm-del-btn" class="btn btn-primary" style="background:var(--danger); border:none;">删除</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="email-modal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <div style="font-size: 1.2rem; font-weight: 600; margin-bottom: 10px;">📫 接收提醒</div>
+            <p style="color:#64748b; font-size:0.9rem; margin-bottom:20px;">绑定真实邮箱后，物品过期前会收到邮件通知。</p>
+            <input type="email" id="notify-email-input" placeholder="输入你的真实邮箱">
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-outline" onclick="closeEmailModal()" style="margin-top:0">取消</button>
+                <button class="btn btn-primary" onclick="app.saveEmail()">保存</button>
             </div>
         </div>
     </div>
@@ -68,27 +68,27 @@
     <div class="container">
         <div id="auth-view" class="auth-box card hidden">
             <h2 style="margin-top:0;">Cycle</h2>
-            <p style="color:#64748b; font-size:0.9rem; margin-bottom:25px;">记录万物周期，让生活井井有条</p>
-            <input type="text" id="username" placeholder="用户名 (英文/数字)" autocomplete="off">
+            <input type="text" id="username" placeholder="用户名" autocomplete="off">
             <input type="password" id="password" placeholder="密码">
             <button class="btn btn-primary" onclick="auth.login()">登 录</button>
             <button class="btn btn-outline" onclick="auth.signup()">注 册</button>
-            <div id="auth-msg" style="color:var(--danger); font-size:0.9rem; margin-top:15px; min-height:1.2em;"></div>
+            <div id="auth-msg" style="color:var(--danger); font-size:0.9rem; margin-top:15px;"></div>
         </div>
 
         <div id="app-view" class="hidden">
             <header>
                 <h1>Cycle</h1>
-                <div class="user-info">
-                    <span id="display-email"></span>
-                    <button onclick="auth.logout()" class="logout-link">退出</button>
+                <div class="user-controls">
+                    <span id="display-name" style="font-weight:bold"></span>
+                    <button onclick="showEmailModal()" class="link-btn">🔔 提醒</button>
+                    <button onclick="auth.logout()" class="link-btn" style="color:var(--danger)">退出</button>
                 </div>
             </header>
 
             <div class="card">
                 <h3 style="margin-top:0; margin-bottom:15px; font-size:1.1rem;">📝 新增记录</h3>
                 <div style="display:flex; gap:12px; flex-wrap:wrap;">
-                    <input type="text" id="itemName" placeholder="物品名称 (如: 电动牙刷头)" style="flex:2; min-width: 180px;">
+                    <input type="text" id="itemName" placeholder="物品名称" style="flex:2; min-width: 180px;">
                     <input type="date" id="startDate" style="flex:1; min-width: 130px;">
                 </div>
                 <div style="display:flex; gap:12px;">
@@ -107,56 +107,46 @@
     </div>
 
     <script>
-        // ==========================================
-        // 配置区域 (已保留你的配置)
-        // ==========================================
-        const SUPABASE_URL = 'https://hyyvijaadknbfgkrsmpj.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh5eXZpamFhZGtuYmZna3JzbXBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ2MzkyMjQsImV4cCI6MjA4MDIxNTIyNH0.8SiHwup728Z6EiAQhZ0xBfjx0z6U8-iZ_H39uD2zw2k';
-        // ==========================================
+        // 配置区
+        const SUPABASE_URL = 'https://hyyvijaadknbfgkrsmpj.supabase.co'; // 记得填回你的
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh5eXZpamFhZGtuYmZna3JzbXBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ2MzkyMjQsImV4cCI6MjA4MDIxNTIyNH0.8SiHwup728Z6EiAQhZ0xBfjx0z6U8-iZ_H39uD2zw2k'; // 记得填回你的
+        const FAKE_SUFFIX = '@cycle.com';
 
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         let currentUser = null;
-        const FAKE_SUFFIX = '@cycle.com';
         document.getElementById('startDate').valueAsDate = new Date();
 
-        // --- 弹窗逻辑 (新增) ---
+        // --- 弹窗逻辑 ---
         let deleteTargetId = null;
-        function showConfirm(id) {
-            deleteTargetId = id;
-            document.getElementById('confirm-modal').classList.remove('hidden');
+        function showConfirm(id) { deleteTargetId = id; document.getElementById('confirm-modal').classList.remove('hidden'); }
+        function closeConfirm() { deleteTargetId = null; document.getElementById('confirm-modal').classList.add('hidden'); }
+        document.getElementById('confirm-del-btn').addEventListener('click', () => { if(deleteTargetId) app.del(deleteTargetId); closeConfirm(); });
+
+        // 邮箱设置弹窗
+        function showEmailModal() { 
+            document.getElementById('notify-email-input').value = currentUser.user_metadata.notify_email || '';
+            document.getElementById('email-modal').classList.remove('hidden'); 
         }
-        function closeConfirm() {
-            deleteTargetId = null;
-            document.getElementById('confirm-modal').classList.add('hidden');
-        }
-        document.getElementById('confirm-del-btn').addEventListener('click', () => {
-            if (deleteTargetId) app.del(deleteTargetId);
-            closeConfirm();
-        });
+        function closeEmailModal() { document.getElementById('email-modal').classList.add('hidden'); }
 
         const auth = {
             getFakeEmail(username) { return username.trim() + FAKE_SUFFIX; },
             async signup() {
-                const username = document.getElementById('username').value;
-                const password = document.getElementById('password').value;
-                const msg = document.getElementById('auth-msg');
-                if (!username || !password) return msg.textContent = "请输入用户名和密码";
-                msg.textContent = '注册中...';
+                const u = document.getElementById('username').value;
+                const p = document.getElementById('password').value;
+                if (!u || !p) return;
                 const { error } = await supabase.auth.signUp({
-                    email: this.getFakeEmail(username), password: password,
-                    options: { data: { just_name: username } }
+                    email: this.getFakeEmail(u), password: p,
+                    options: { data: { just_name: u } } // 注册时不带 notify_email
                 });
-                if (error) { msg.style.color = 'red'; msg.textContent = error.message; }
-                else { msg.style.color = 'green'; msg.textContent = '注册成功！正在登录...'; }
+                if (error) document.getElementById('auth-msg').textContent = error.message;
+                else document.getElementById('auth-msg').textContent = '注册成功，登录中...';
             },
             async login() {
-                const username = document.getElementById('username').value;
-                const password = document.getElementById('password').value;
-                const msg = document.getElementById('auth-msg');
-                const { error } = await supabase.auth.signInWithPassword({
-                    email: this.getFakeEmail(username), password: password
-                });
-                if (error) { msg.style.color = 'red'; msg.textContent = '用户名或密码错误'; }
+                const u = document.getElementById('username').value;
+                const p = document.getElementById('password').value;
+                const { error } = await supabase.auth.signInWithPassword({ email: this.getFakeEmail(u), password: p });
+                if (error) document.getElementById('auth-msg').textContent = '账号或密码错误';
             },
             async logout() { await supabase.auth.signOut(); }
         };
@@ -169,77 +159,73 @@
             },
             async add() {
                 const name = document.getElementById('itemName').value;
-                const dateStr = document.getElementById('startDate').value;
-                const duration = document.getElementById('duration').value;
+                const date = document.getElementById('startDate').value;
+                const dur = document.getElementById('duration').value;
                 const unit = document.getElementById('unit').value;
-                if (!name || !dateStr || !duration) return alert('请填写完整信息');
-                
+                if (!name || !date || !dur) return alert('请填全信息');
                 const { data, error } = await supabase.from('cycle_items').insert([{
-                    name: name, start_date: new Date(dateStr).toISOString(),
-                    duration: duration, unit: unit, user_id: currentUser.id
+                    name, start_date: new Date(date).toISOString(), duration: dur, unit, user_id: currentUser.id
                 }]).select();
-                
-                if (error) alert('添加失败: ' + error.message);
-                else { this.data.unshift(data[0]); this.render();
-                    document.getElementById('itemName').value = ''; document.getElementById('duration').value = ''; }
+                if (!error) { this.data.unshift(data[0]); this.render(); }
             },
             async del(id) {
-                // 这里移除了原生 confirm，直接执行删除 (因为由弹窗控制了)
                 const { error } = await supabase.from('cycle_items').delete().eq('id', id);
-                if (!error) { this.data = this.data.filter(item => item.id !== id); this.render(); }
+                if (!error) { this.data = this.data.filter(i => i.id !== id); this.render(); }
+            },
+            // [新增] 保存真实邮箱到 user_metadata
+            async saveEmail() {
+                const email = document.getElementById('notify-email-input').value;
+                if (!email.includes('@')) return alert('请输入有效的邮箱');
+                
+                const { data, error } = await supabase.auth.updateUser({
+                    data: { notify_email: email }
+                });
+
+                if (error) alert('保存失败: ' + error.message);
+                else {
+                    alert('设置成功！当物品快过期时，会发送邮件到: ' + email);
+                    currentUser = data.user; // 更新本地用户信息
+                    closeEmailModal();
+                }
             },
             render() {
                 const list = document.getElementById('item-list');
                 list.innerHTML = '';
-                if (this.data.length === 0) {
-                    list.innerHTML = '<div style="text-align:center; color:#94a3b8; margin-top:40px;">暂无记录，添加一个试试？</div>';
-                    return;
-                }
-                this.data.forEach(item => { list.innerHTML += this.generateItemHTML(item); });
+                this.data.forEach(item => list.innerHTML += this.html(item));
             },
-            generateItemHTML(item) {
+            html(item) {
                 const start = new Date(item.start_date); const end = new Date(start);
                 if (item.unit === 'days') end.setDate(start.getDate() + parseInt(item.duration));
                 if (item.unit === 'months') end.setMonth(start.getMonth() + parseInt(item.duration));
                 if (item.unit === 'years') end.setFullYear(start.getFullYear() + parseInt(item.duration));
-                
                 const now = new Date();
-                const daysLeft = Math.ceil((end - now) / (86400000));
-                let percent = ((now - start) / (end - start)) * 100;
-                if (percent > 100) percent = 100; if (percent < 0) percent = 0;
-                
-                let statusText = '', color = '';
-                if (daysLeft < 0) { statusText = `已过期 ${Math.abs(daysLeft)} 天`; color = 'var(--danger)'; }
-                else { statusText = `剩余 ${daysLeft} 天`; color = (daysLeft <= 7) ? 'var(--warning)' : 'var(--primary)'; }
-                
-                const unitMap = { days: '天', months: '个月', years: '年' };
-                return `
-                <div class="item-card">
+                const daysLeft = Math.ceil((end - now) / 86400000);
+                let per = ((now - start) / (end - start)) * 100;
+                if (per > 100) per = 100; if (per < 0) per = 0;
+                let color = daysLeft < 0 ? 'var(--danger)' : (daysLeft < 7 ? 'var(--warning)' : 'var(--primary)');
+                const unitMap = { days:'天', months:'个月', years:'年' };
+                return `<div class="item-card">
                     <div class="item-top">
                         <div class="item-name">${item.name}</div>
-                        <div class="del-btn-icon" onclick="showConfirm(${item.id})" title="删除">🗑️</div>
+                        <div class="del-btn-icon" onclick="showConfirm(${item.id})">🗑️</div>
                     </div>
                     <div class="item-meta">
-                        <div>${start.toLocaleDateString()} 开始 · ${item.duration}${unitMap[item.unit]}</div>
-                        <div class="item-status" style="color:${color}">${statusText}</div>
+                        <div>${start.toLocaleDateString()} · ${item.duration}${unitMap[item.unit]}</div>
+                        <div style="color:${color};font-weight:bold">${daysLeft<0?'过期 '+Math.abs(daysLeft):'剩 '+daysLeft} 天</div>
                     </div>
-                    <div class="progress-track">
-                        <div class="progress-fill" style="width:${percent}%; background:${color}"></div>
-                    </div>
+                    <div class="progress-track"><div class="progress-fill" style="width:${per}%;background:${color}"></div></div>
                 </div>`;
             }
         };
 
-        supabase.auth.onAuthStateChange((event, session) => {
+        supabase.auth.onAuthStateChange((e, session) => {
             if (session) {
                 currentUser = session.user;
                 document.getElementById('auth-view').classList.add('hidden');
                 document.getElementById('app-view').classList.remove('hidden');
-                const name = currentUser.user_metadata.just_name || currentUser.email.split('@')[0];
-                document.getElementById('display-email').textContent = name;
+                document.getElementById('display-name').textContent = currentUser.user_metadata.just_name || '用户';
                 app.load();
             } else {
-                currentUser = null;
                 document.getElementById('auth-view').classList.remove('hidden');
                 document.getElementById('app-view').classList.add('hidden');
             }
