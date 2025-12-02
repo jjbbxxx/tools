@@ -1,207 +1,78 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Life Cycle | 物品周期管理</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root {
-            --primary: #2563eb;
-            --danger: #ef4444;
-            --warning: #f59e0b;
-            --bg: #f8fafc;
-            --card-bg: #ffffff;
-            --text: #1e293b;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            min-height: 100vh;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 600px;
-        }
-
-        .card {
-            background: var(--card-bg);
-            padding: 25px;
-            border-radius: 16px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            margin-bottom: 20px;
-            border: 1px solid #e2e8f0;
-        }
-
+        :root { --primary: #2563eb; --danger: #ef4444; --warning: #f59e0b; --bg: #f8fafc; --card-bg: #ffffff; --text: #1e293b; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; justify-content: center; min-height: 100vh; }
+        
+        .container { width: 100%; max-width: 600px; }
+        .card { background: var(--card-bg); padding: 25px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 20px; border: 1px solid #e2e8f0; }
+        
         /* 登录/注册页样式 */
-        .auth-box {
-            text-align: center;
-            max-width: 400px;
-            margin: 60px auto;
-        }
-
-        input,
-        select {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 15px;
-            border: 1px solid #cbd5e1;
-            border-radius: 8px;
-            box-sizing: border-box;
-            font-size: 1rem;
-            transition: border 0.2s;
-        }
-
-        input:focus,
-        select:focus {
-            outline: none;
-            border-color: var(--primary);
-        }
-
-        .btn {
-            width: 100%;
-            padding: 12px;
-            border-radius: 8px;
-            border: none;
-            font-size: 1rem;
-            cursor: pointer;
-            font-weight: 600;
-            transition: 0.2s;
-        }
-
-        .btn-primary {
-            background: var(--primary);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #1d4ed8;
-        }
-
-        .btn-outline {
-            background: transparent;
-            border: 1px solid var(--primary);
-            color: var(--primary);
-            margin-top: 10px;
-        }
-
+        .auth-box { text-align: center; max-width: 400px; margin: 60px auto; }
+        input, select { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; font-size: 1rem; transition: border 0.2s; }
+        input:focus, select:focus { outline: none; border-color: var(--primary); }
+        .btn { width: 100%; padding: 12px; border-radius: 8px; border: none; font-size: 1rem; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .btn-outline { background: transparent; border: 1px solid var(--primary); color: var(--primary); margin-top: 10px; }
+        
         /* 主界面样式 */
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 25px;
-        }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        h1 { margin: 0; font-size: 1.5rem; letter-spacing: -0.5px; }
+        .user-info { font-size: 0.9rem; color: #64748b; display: flex; align-items: center; gap: 10px; }
+        .logout-link { color: var(--danger); cursor: pointer; text-decoration: underline; border: none; background: none; font-size: 0.9rem; }
 
-        h1 {
-            margin: 0;
-            font-size: 1.5rem;
-            letter-spacing: -0.5px;
-        }
+        /* 列表项卡片 (新版布局) */
+        .item-card { background: white; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 15px; position: relative; transition: transform 0.2s, box-shadow 0.2s; }
+        .item-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
+        
+        .item-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .item-name { font-weight: 600; font-size: 1.15rem; flex-grow: 1; margin-right: 10px; }
+        
+        /* 垃圾桶图标样式 */
+        .del-btn-icon { color: #cbd5e1; cursor: pointer; font-size: 1.2rem; padding: 4px; margin-top: -4px; border-radius: 4px; transition: all 0.2s; }
+        .del-btn-icon:hover { color: var(--danger); background-color: #fee2e2; }
 
-        .user-info {
-            font-size: 0.9rem;
-            color: #64748b;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+        /* 副标题与状态栏 */
+        .item-meta { display: flex; justify-content: space-between; font-size: 0.9rem; color: #64748b; margin-bottom: 12px; }
+        .item-status { font-weight: 600; }
 
-        .logout-link {
-            color: var(--danger);
-            cursor: pointer;
-            text-decoration: underline;
-            border: none;
-            background: none;
-            font-size: 0.9rem;
-        }
+        .progress-track { height: 8px; background: #f1f5f9; border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
 
-        /* 列表项卡片 */
-        .item-card {
-            background: white;
-            padding: 18px;
-            border-radius: 12px;
-            border: 1px solid #e2e8f0;
-            margin-bottom: 15px;
-            position: relative;
-            transition: transform 0.2s;
-        }
-
-        .item-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        }
-
-        .item-top {
-            display: flex;
-            justify-content: space-between;
-            font-weight: 600;
-            font-size: 1.1rem;
-            margin-bottom: 5px;
-        }
-
-        .item-sub {
-            font-size: 0.85rem;
-            color: #64748b;
-            margin-bottom: 12px;
-        }
-
-        /* 进度条 */
-        .progress-track {
-            height: 8px;
-            background: #f1f5f9;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        .progress-fill {
-            height: 100%;
-            border-radius: 4px;
-            transition: width 0.5s ease;
-        }
-
-        .del-btn {
-            position: absolute;
-            bottom: 18px;
-            right: 18px;
-            color: #94a3b8;
-            cursor: pointer;
-            font-size: 0.85rem;
-            background: none;
-            border: none;
-        }
-
-        .del-btn:hover {
-            color: var(--danger);
-        }
-
-        .hidden {
-            display: none !important;
-        }
+        /* 确认弹窗样式 */
+        .confirm-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .confirm-box { background: white; padding: 25px; border-radius: 16px; width: 90%; max-width: 320px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .confirm-actions { display: flex; gap: 10px; margin-top: 20px; }
+        .hidden { display: none !important; }
     </style>
 </head>
 
 <body>
+    <div id="confirm-modal" class="confirm-modal hidden">
+        <div class="confirm-box">
+            <div style="font-size: 1.2rem; font-weight: 600; margin-bottom: 10px;">确认删除?</div>
+            <p style="color:#64748b; margin-bottom:20px;">此操作无法撤销。</p>
+            <div class="confirm-actions">
+                <button class="btn btn-outline" onclick="closeConfirm()" style="margin-top:0">取消</button>
+                <button id="confirm-del-btn" class="btn btn-primary" style="background:var(--danger); border:none;">删除</button>
+            </div>
+        </div>
+    </div>
 
     <div class="container">
-
         <div id="auth-view" class="auth-box card hidden">
-            <h2 style="margin-top:0;">欢迎使用 Life Cycle</h2>
+            <h2 style="margin-top:0;">Cycle</h2>
             <p style="color:#64748b; font-size:0.9rem; margin-bottom:25px;">记录万物周期，让生活井井有条</p>
-
             <input type="text" id="username" placeholder="用户名 (英文/数字)" autocomplete="off">
             <input type="password" id="password" placeholder="密码">
-
             <button class="btn btn-primary" onclick="auth.login()">登 录</button>
-            <button class="btn btn-outline" onclick="auth.signup()">注 册 新 账 号</button>
+            <button class="btn btn-outline" onclick="auth.signup()">注 册</button>
             <div id="auth-msg" style="color:var(--danger); font-size:0.9rem; margin-top:15px; min-height:1.2em;"></div>
         </div>
 
@@ -233,213 +104,139 @@
 
             <div id="item-list"></div>
         </div>
-
     </div>
 
     <script>
         // ==========================================
-        // ⚠️ 请在这里填入你的 Supabase 配置
+        // 配置区域 (已保留你的配置)
         // ==========================================
-        const SUPABASE_URL = 'https://hyyvijaadknbfgkrsmpj.supabase.co'; // 类似 https://xxxx.supabase.co
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh5eXZpamFhZGtuYmZna3JzbXBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ2MzkyMjQsImV4cCI6MjA4MDIxNTIyNH0.8SiHwup728Z6EiAQhZ0xBfjx0z6U8-iZ_H39uD2zw2k';    // 那个很长的 eyJ... 字符串
+        const SUPABASE_URL = 'https://hyyvijaadknbfgkrsmpj.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh5eXZpamFhZGtuYmZna3JzbXBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ2MzkyMjQsImV4cCI6MjA4MDIxNTIyNH0.8SiHwup728Z6EiAQhZ0xBfjx0z6U8-iZ_H39uD2zw2k';
         // ==========================================
 
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         let currentUser = null;
-
-        // [新增] 定义一个假后缀，用来骗过 Supabase 的邮箱验证
         const FAKE_SUFFIX = '@cycle.com';
-
-        // 默认设置日期选择器为今天
         document.getElementById('startDate').valueAsDate = new Date();
 
-        const auth = {
-            // 辅助函数：拼假邮箱
-            getFakeEmail(username) { return username.trim() + FAKE_SUFFIX; },
+        // --- 弹窗逻辑 (新增) ---
+        let deleteTargetId = null;
+        function showConfirm(id) {
+            deleteTargetId = id;
+            document.getElementById('confirm-modal').classList.remove('hidden');
+        }
+        function closeConfirm() {
+            deleteTargetId = null;
+            document.getElementById('confirm-modal').classList.add('hidden');
+        }
+        document.getElementById('confirm-del-btn').addEventListener('click', () => {
+            if (deleteTargetId) app.del(deleteTargetId);
+            closeConfirm();
+        });
 
+        const auth = {
+            getFakeEmail(username) { return username.trim() + FAKE_SUFFIX; },
             async signup() {
                 const username = document.getElementById('username').value;
                 const password = document.getElementById('password').value;
                 const msg = document.getElementById('auth-msg');
-
                 if (!username || !password) return msg.textContent = "请输入用户名和密码";
                 msg.textContent = '注册中...';
-
-                // 注册：存假邮箱，但在 metadata 里存真用户名
                 const { error } = await supabase.auth.signUp({
-                    email: this.getFakeEmail(username),
-                    password: password,
+                    email: this.getFakeEmail(username), password: password,
                     options: { data: { just_name: username } }
                 });
-
-                if (error) {
-                    msg.style.color = 'red';
-                    msg.textContent = error.message;
-                } else {
-                    msg.style.color = 'green';
-                    msg.textContent = '注册成功！正在登录...';
-                }
+                if (error) { msg.style.color = 'red'; msg.textContent = error.message; }
+                else { msg.style.color = 'green'; msg.textContent = '注册成功！正在登录...'; }
             },
-
             async login() {
                 const username = document.getElementById('username').value;
                 const password = document.getElementById('password').value;
                 const msg = document.getElementById('auth-msg');
-
-                // 登录：拼出假邮箱去验证
                 const { error } = await supabase.auth.signInWithPassword({
-                    email: this.getFakeEmail(username),
-                    password: password
+                    email: this.getFakeEmail(username), password: password
                 });
-
-                if (error) {
-                    msg.style.color = 'red';
-                    msg.textContent = '用户名或密码错误';
-                }
+                if (error) { msg.style.color = 'red'; msg.textContent = '用户名或密码错误'; }
             },
-
             async logout() { await supabase.auth.signOut(); }
         };
 
         const app = {
             data: [],
-
             async load() {
-                // RLS 会自动过滤，这里只拿得到自己的数据
-                const { data, error } = await supabase
-                    .from('cycle_items')
-                    .select('*')
-                    .order('created_at', { ascending: false });
-
-                if (data) {
-                    this.data = data;
-                    this.render();
-                }
+                const { data } = await supabase.from('cycle_items').select('*').order('created_at', { ascending: false });
+                if (data) { this.data = data; this.render(); }
             },
-
             async add() {
                 const name = document.getElementById('itemName').value;
                 const dateStr = document.getElementById('startDate').value;
                 const duration = document.getElementById('duration').value;
                 const unit = document.getElementById('unit').value;
-
                 if (!name || !dateStr || !duration) return alert('请填写完整信息');
-
-                // 就算数据库是 timestamptz，我们存 ISO 字符串也没问题
-                const startISO = new Date(dateStr).toISOString();
-
+                
                 const { data, error } = await supabase.from('cycle_items').insert([{
-                    name: name,
-                    start_date: startISO,
-                    duration: duration,
-                    unit: unit,
-                    user_id: currentUser.id // 必填：标记归属
+                    name: name, start_date: new Date(dateStr).toISOString(),
+                    duration: duration, unit: unit, user_id: currentUser.id
                 }]).select();
-
-                if (error) {
-                    alert('添加失败: ' + error.message);
-                } else {
-                    this.data.unshift(data[0]); // 加到列表开头
-                    this.render();
-                    // 重置输入框
-                    document.getElementById('itemName').value = '';
-                    document.getElementById('duration').value = '';
-                }
+                
+                if (error) alert('添加失败: ' + error.message);
+                else { this.data.unshift(data[0]); this.render();
+                    document.getElementById('itemName').value = ''; document.getElementById('duration').value = ''; }
             },
-
             async del(id) {
-                if (confirm('确认删除这条记录吗？')) {
-                    const { error } = await supabase.from('cycle_items').delete().eq('id', id);
-                    if (!error) {
-                        this.data = this.data.filter(item => item.id !== id);
-                        this.render();
-                    }
-                }
+                // 这里移除了原生 confirm，直接执行删除 (因为由弹窗控制了)
+                const { error } = await supabase.from('cycle_items').delete().eq('id', id);
+                if (!error) { this.data = this.data.filter(item => item.id !== id); this.render(); }
             },
-
             render() {
                 const list = document.getElementById('item-list');
                 list.innerHTML = '';
-
                 if (this.data.length === 0) {
                     list.innerHTML = '<div style="text-align:center; color:#94a3b8; margin-top:40px;">暂无记录，添加一个试试？</div>';
                     return;
                 }
-
-                this.data.forEach(item => {
-                    const html = this.generateItemHTML(item);
-                    list.innerHTML += html;
-                });
+                this.data.forEach(item => { list.innerHTML += this.generateItemHTML(item); });
             },
-
             generateItemHTML(item) {
-                // 计算逻辑
-                const start = new Date(item.start_date);
-                const end = new Date(start);
-
-                // 根据单位计算结束日期
+                const start = new Date(item.start_date); const end = new Date(start);
                 if (item.unit === 'days') end.setDate(start.getDate() + parseInt(item.duration));
                 if (item.unit === 'months') end.setMonth(start.getMonth() + parseInt(item.duration));
                 if (item.unit === 'years') end.setFullYear(start.getFullYear() + parseInt(item.duration));
-
+                
                 const now = new Date();
-                const totalMs = end - start;
-                const passedMs = now - start;
-
-                // 计算剩余天数
-                const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
-
-                // 计算百分比 (0-100)
-                let percent = (passedMs / totalMs) * 100;
-                if (percent > 100) percent = 100;
-                if (percent < 0) percent = 0;
-
-                // 状态判断
-                const isExpired = daysLeft < 0;
-                let statusText = '';
-                let color = '';
-
-                if (isExpired) {
-                    statusText = `已过期 ${Math.abs(daysLeft)} 天`;
-                    color = 'var(--danger)';
-                } else {
-                    statusText = `剩余 ${daysLeft} 天`;
-                    color = (daysLeft <= 7) ? 'var(--warning)' : 'var(--primary)';
-                }
-
-                // 格式化显示的开始日期 (YYYY-MM-DD)
-                const showDate = start.toLocaleDateString();
+                const daysLeft = Math.ceil((end - now) / (86400000));
+                let percent = ((now - start) / (end - start)) * 100;
+                if (percent > 100) percent = 100; if (percent < 0) percent = 0;
+                
+                let statusText = '', color = '';
+                if (daysLeft < 0) { statusText = `已过期 ${Math.abs(daysLeft)} 天`; color = 'var(--danger)'; }
+                else { statusText = `剩余 ${daysLeft} 天`; color = (daysLeft <= 7) ? 'var(--warning)' : 'var(--primary)'; }
+                
                 const unitMap = { days: '天', months: '个月', years: '年' };
-
                 return `
                 <div class="item-card">
                     <div class="item-top">
-                        <span>${item.name}</span>
-                        <span style="color:${color}">${statusText}</span>
+                        <div class="item-name">${item.name}</div>
+                        <div class="del-btn-icon" onclick="showConfirm(${item.id})" title="删除">🗑️</div>
                     </div>
-                    <div class="item-sub">
-                        ${showDate} 开始 · 周期 ${item.duration}${unitMap[item.unit]}
+                    <div class="item-meta">
+                        <div>${start.toLocaleDateString()} 开始 · ${item.duration}${unitMap[item.unit]}</div>
+                        <div class="item-status" style="color:${color}">${statusText}</div>
                     </div>
                     <div class="progress-track">
                         <div class="progress-fill" style="width:${percent}%; background:${color}"></div>
                     </div>
-                    <button class="del-btn" onclick="app.del(${item.id})">删除</button>
-                </div>
-            `;
+                </div>`;
             }
         };
 
-        // 监听登录状态
         supabase.auth.onAuthStateChange((event, session) => {
             if (session) {
                 currentUser = session.user;
                 document.getElementById('auth-view').classList.add('hidden');
                 document.getElementById('app-view').classList.remove('hidden');
-
-                // [修改] 优先显示 metadata 里的纯用户名，如果没有就显示邮箱去掉后缀
                 const name = currentUser.user_metadata.just_name || currentUser.email.split('@')[0];
-                document.getElementById('display-email').textContent = name; // 注意这里ID可能叫 display-email 或 display-name，对应你HTML里的ID
-
+                document.getElementById('display-email').textContent = name;
                 app.load();
             } else {
                 currentUser = null;
@@ -449,5 +246,4 @@
         });
     </script>
 </body>
-
 </html>
