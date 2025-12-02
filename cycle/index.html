@@ -3,330 +3,285 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Life Cycle | 物品周期追踪</title>
+    <title>Life Cycle | 物品周期管理</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root {
-            --primary: #2563eb;
-            --danger: #ef4444;
-            --success: #22c55e;
-            --warning: #f59e0b;
-            --bg: #f8fafc;
-            --card-bg: #ffffff;
-            --text: #1e293b;
-            --text-light: #64748b;
-        }
-
-        body {
-            font-family: -apple-system, sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            margin: 0;
-            padding: 20px;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        /* 顶部区域 */
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-        }
-
-        h1 { margin: 0; font-size: 1.5rem; }
+        :root { --primary: #2563eb; --danger: #ef4444; --warning: #f59e0b; --bg: #f8fafc; --card-bg: #ffffff; --text: #1e293b; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; justify-content: center; min-height: 100vh; }
         
-        .back-btn {
-            text-decoration: none;
-            color: var(--text-light);
-            font-size: 0.9rem;
-        }
-
-        /* 输入表单区域 */
-        .input-card {
-            background: var(--card-bg);
-            padding: 20px;
-            border-radius: 16px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-            margin-bottom: 30px;
-        }
-
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; font-size: 0.9rem; color: var(--text-light); }
-        .form-row { display: flex; gap: 10px; }
+        .container { width: 100%; max-width: 600px; }
+        .card { background: var(--card-bg); padding: 25px; border-radius: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; border: 1px solid #e2e8f0; }
         
-        input, select {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            box-sizing: border-box;
-            font-size: 1rem;
-        }
-
-        button#addBtn {
-            width: 100%;
-            background-color: var(--primary);
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        button#addBtn:hover { background-color: #1d4ed8; }
-
-        /* 列表显示区域 */
-        .item-list { display: flex; flex-direction: column; gap: 15px; }
-
-        .item-card {
-            background: var(--card-bg);
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid #e2e8f0;
-            position: relative;
-        }
-
-        .item-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 10px;
-        }
-
-        .item-name { font-weight: bold; font-size: 1.1rem; }
+        /* 登录/注册页样式 */
+        .auth-box { text-align: center; max-width: 400px; margin: 60px auto; }
+        input, select { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; font-size: 1rem; transition: border 0.2s; }
+        input:focus, select:focus { outline: none; border-color: var(--primary); }
         
-        .badge {
-            font-size: 0.8rem;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-weight: bold;
-        }
-        .badge.active { background: #dcfce7; color: #166534; }
-        .badge.expired { background: #fee2e2; color: #991b1b; }
+        .btn { width: 100%; padding: 12px; border-radius: 8px; border: none; font-size: 1rem; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .btn-outline { background: transparent; border: 1px solid var(--primary); color: var(--primary); margin-top: 10px; }
+        
+        /* 主界面样式 */
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        h1 { margin: 0; font-size: 1.5rem; letter-spacing: -0.5px; }
+        .user-info { font-size: 0.9rem; color: #64748b; display: flex; align-items: center; gap: 10px; }
+        .logout-link { color: var(--danger); cursor: pointer; text-decoration: underline; border: none; background: none; font-size: 0.9rem;}
 
-        .dates { font-size: 0.85rem; color: var(--text-light); margin-bottom: 15px; }
-
+        /* 列表项卡片 */
+        .item-card { background: white; padding: 18px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 15px; position: relative; transition: transform 0.2s; }
+        .item-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        
+        .item-top { display: flex; justify-content: space-between; font-weight: 600; font-size: 1.1rem; margin-bottom: 5px; }
+        .item-sub { font-size: 0.85rem; color: #64748b; margin-bottom: 12px; }
+        
         /* 进度条 */
-        .progress-bg {
-            height: 8px;
-            background: #f1f5f9;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        .progress-fill {
-            height: 100%;
-            border-radius: 4px;
-            transition: width 0.3s ease;
-        }
+        .progress-track { height: 8px; background: #f1f5f9; border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+        
+        .del-btn { position: absolute; bottom: 18px; right: 18px; color: #94a3b8; cursor: pointer; font-size: 0.85rem; background: none; border: none; }
+        .del-btn:hover { color: var(--danger); }
 
-        /* 删除按钮 */
-        .delete-btn {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            background: none;
-            border: none;
-            color: var(--text-light);
-            cursor: pointer;
-            font-size: 0.9rem;
-        }
-        .delete-btn:hover { color: var(--danger); }
-
-        .empty-state { text-align: center; color: var(--text-light); margin-top: 40px; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
 
-    <header>
-        <a href="/" class="back-btn">← 返回工具箱</a>
-        <h1>Life Cycle</h1>
-    </header>
-
-    <div class="input-card">
-        <div class="form-group">
-            <label>物品名称</label>
-            <input type="text" id="itemName" placeholder="例如：电动牙刷头">
-        </div>
+<div class="container">
+    
+    <div id="auth-view" class="auth-box card hidden">
+        <h2 style="margin-top:0;">欢迎使用 Life Cycle</h2>
+        <p style="color:#64748b; font-size:0.9rem; margin-bottom:25px;">记录万物周期，让生活井井有条</p>
         
-        <div class="form-row">
-            <div class="form-group" style="flex: 2;">
-                <label>开始使用日期</label>
-                <input type="date" id="startDate">
+        <input type="email" id="email" placeholder="请输入邮箱">
+        <input type="password" id="password" placeholder="设置密码 (至少6位)">
+        
+        <button class="btn btn-primary" onclick="auth.login()">登 录</button>
+        <button class="btn btn-outline" onclick="auth.signup()">注 册 新 账 号</button>
+        <div id="auth-msg" style="color:var(--danger); font-size:0.9rem; margin-top:15px; min-height:1.2em;"></div>
+    </div>
+
+    <div id="app-view" class="hidden">
+        <header>
+            <h1>Cycle</h1>
+            <div class="user-info">
+                <span id="display-email"></span>
+                <button onclick="auth.logout()" class="logout-link">退出</button>
             </div>
-            <div class="form-group" style="flex: 1;">
-                <label>有效期</label>
-                <input type="number" id="duration" placeholder="3">
+        </header>
+
+        <div class="card">
+            <h3 style="margin-top:0; margin-bottom:15px; font-size:1.1rem;">📝 新增记录</h3>
+            <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                <input type="text" id="itemName" placeholder="物品名称 (如: 电动牙刷头)" style="flex:2; min-width: 180px;">
+                <input type="date" id="startDate" style="flex:1; min-width: 130px;">
             </div>
-            <div class="form-group" style="flex: 1;">
-                <label>单位</label>
-                <select id="unit">
+            <div style="display:flex; gap:12px;">
+                <input type="number" id="duration" placeholder="有效期" style="flex:1">
+                <select id="unit" style="flex:1">
+                    <option value="months" selected>个月</option>
                     <option value="days">天</option>
-                    <option value="months" selected>月</option>
                     <option value="years">年</option>
                 </select>
             </div>
+            <button class="btn btn-primary" onclick="app.add()" style="margin-top:5px;">开始追踪</button>
         </div>
-        <button id="addBtn">开始追踪</button>
+
+        <div id="item-list"></div>
     </div>
 
-    <div id="itemList" class="item-list">
-        </div>
+</div>
 
-    <script>
-        // 初始化：设置日期输入框默认为今天
-        document.getElementById('startDate').valueAsDate = new Date();
+<script>
+    // ==========================================
+    // ⚠️ 请在这里填入你的 Supabase 配置
+    // ==========================================
+    const SUPABASE_URL = 'https://hyyvijaadknbfgkrsmpj.supabase.co'; // 类似 https://xxxx.supabase.co
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh5eXZpamFhZGtuYmZna3JzbXBqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ2MzkyMjQsImV4cCI6MjA4MDIxNTIyNH0.8SiHwup728Z6EiAQhZ0xBfjx0z6U8-iZ_H39uD2zw2k';    // 那个很长的 eyJ... 字符串
+    // ==========================================
 
-        // 核心逻辑
-        const app = {
-            data: [],
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    let currentUser = null;
 
-            init() {
-                // 1. 从本地存储读取数据
-                const storedData = localStorage.getItem('cycle_items');
-                if (storedData) {
-                    this.data = JSON.parse(storedData);
-                }
+    // 默认设置日期选择器为今天
+    document.getElementById('startDate').valueAsDate = new Date();
+
+    const auth = {
+        async signup() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const msg = document.getElementById('auth-msg');
+            msg.textContent = '注册中...';
+            
+            const { data, error } = await supabase.auth.signUp({ email, password });
+            if (error) {
+                msg.style.color = 'var(--danger)';
+                msg.textContent = error.message;
+            } else {
+                msg.style.color = 'green';
+                msg.textContent = '注册成功！正在登录...';
+            }
+        },
+
+        async login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const msg = document.getElementById('auth-msg');
+            
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) {
+                msg.style.color = 'var(--danger)';
+                msg.textContent = '邮箱或密码错误';
+            }
+        },
+
+        async logout() {
+            await supabase.auth.signOut();
+        }
+    };
+
+    const app = {
+        data: [],
+
+        async load() {
+            // RLS 会自动过滤，这里只拿得到自己的数据
+            const { data, error } = await supabase
+                .from('cycle_items')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (data) {
+                this.data = data;
                 this.render();
-            },
+            }
+        },
 
-            add() {
-                const name = document.getElementById('itemName').value;
-                const start = document.getElementById('startDate').value;
-                const duration = parseInt(document.getElementById('duration').value);
-                const unit = document.getElementById('unit').value;
+        async add() {
+            const name = document.getElementById('itemName').value;
+            const dateStr = document.getElementById('startDate').value;
+            const duration = document.getElementById('duration').value;
+            const unit = document.getElementById('unit').value;
 
-                if (!name || !start || !duration) {
-                    alert('请完整填写信息');
-                    return;
-                }
+            if (!name || !dateStr || !duration) return alert('请填写完整信息');
 
-                const newItem = {
-                    id: Date.now(), // 用时间戳做唯一ID
-                    name,
-                    start,
-                    duration,
-                    unit
-                };
+            // 就算数据库是 timestamptz，我们存 ISO 字符串也没问题
+            const startISO = new Date(dateStr).toISOString();
 
-                this.data.push(newItem);
-                this.save();
+            const { data, error } = await supabase.from('cycle_items').insert([{
+                name: name,
+                start_date: startISO, 
+                duration: duration,
+                unit: unit,
+                user_id: currentUser.id // 必填：标记归属
+            }]).select();
+
+            if (error) {
+                alert('添加失败: ' + error.message);
+            } else {
+                this.data.unshift(data[0]); // 加到列表开头
                 this.render();
-                
-                // 清空输入框
+                // 重置输入框
                 document.getElementById('itemName').value = '';
                 document.getElementById('duration').value = '';
-            },
+            }
+        },
 
-            delete(id) {
-                if(confirm('确定要删除这个记录吗？')) {
+        async del(id) {
+            if (confirm('确认删除这条记录吗？')) {
+                const { error } = await supabase.from('cycle_items').delete().eq('id', id);
+                if (!error) {
                     this.data = this.data.filter(item => item.id !== id);
-                    this.save();
                     this.render();
                 }
-            },
-
-            save() {
-                localStorage.setItem('cycle_items', JSON.stringify(this.data));
-            },
-
-            calculate(item) {
-                const startDate = new Date(item.start);
-                const today = new Date();
-                let endDate = new Date(startDate);
-
-                // 计算结束日期
-                if (item.unit === 'days') endDate.setDate(startDate.getDate() + item.duration);
-                if (item.unit === 'months') endDate.setMonth(startDate.getMonth() + item.duration);
-                if (item.unit === 'years') endDate.setFullYear(startDate.getFullYear() + item.duration);
-
-                // 计算剩余天数和总进度
-                const totalTime = endDate - startDate;
-                const timePassed = today - startDate;
-                const daysLeft = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
-                
-                let percent = (timePassed / totalTime) * 100;
-                let isExpired = false;
-
-                if (daysLeft < 0) {
-                    isExpired = true;
-                    percent = 100;
-                } else if (percent < 0) {
-                    // 如果开始日期在未来
-                    percent = 0;
-                }
-
-                return {
-                    endDateStr: endDate.toISOString().split('T')[0],
-                    daysLeft,
-                    percent,
-                    isExpired
-                };
-            },
-
-            render() {
-                const listEl = document.getElementById('itemList');
-                listEl.innerHTML = '';
-
-                if (this.data.length === 0) {
-                    listEl.innerHTML = '<div class="empty-state">这里空空如也，添加一个物品开始记录吧！</div>';
-                    return;
-                }
-
-                // 按剩余时间排序（快过期的排前面）
-                this.data.sort((a, b) => {
-                    const statusA = this.calculate(a);
-                    const statusB = this.calculate(b);
-                    return statusA.daysLeft - statusB.daysLeft;
-                });
-
-                this.data.forEach(item => {
-                    const status = this.calculate(item);
-                    
-                    // 根据状态决定颜色
-                    let color = 'var(--primary)';
-                    let statusText = `剩余 ${status.daysLeft} 天`;
-                    let badgeClass = 'active';
-
-                    if (status.isExpired) {
-                        color = 'var(--danger)';
-                        statusText = `已过期 ${Math.abs(status.daysLeft)} 天`;
-                        badgeClass = 'expired';
-                    } else if (status.daysLeft <= 7) {
-                        color = 'var(--warning)'; // 剩7天变黄
-                    }
-
-                    const html = `
-                        <div class="item-card">
-                            <div class="item-header">
-                                <div class="item-name">${item.name}</div>
-                                <div class="badge ${badgeClass}">${status.isExpired ? '已过期' : '进行中'}</div>
-                            </div>
-                            <div class="dates">
-                                开始: ${item.start} &nbsp;|&nbsp; 到期: ${status.endDateStr}
-                            </div>
-                            <div style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:5px; color:${color}; font-weight:bold;">
-                                <span>${statusText}</span>
-                                <span>${Math.min(100, Math.round(status.percent))}%</span>
-                            </div>
-                            <div class="progress-bg">
-                                <div class="progress-fill" style="width: ${status.percent}%; background-color: ${color};"></div>
-                            </div>
-                            <button class="delete-btn" onclick="app.delete(${item.id})">删除</button>
-                        </div>
-                    `;
-                    listEl.innerHTML += html;
-                });
             }
-        };
+        },
 
-        // 绑定按钮事件
-        document.getElementById('addBtn').addEventListener('click', () => app.add());
+        render() {
+            const list = document.getElementById('item-list');
+            list.innerHTML = '';
+            
+            if (this.data.length === 0) {
+                list.innerHTML = '<div style="text-align:center; color:#94a3b8; margin-top:40px;">暂无记录，添加一个试试？</div>';
+                return;
+            }
 
-        // 启动应用
-        app.init();
-    </script>
+            this.data.forEach(item => {
+                const html = this.generateItemHTML(item);
+                list.innerHTML += html;
+            });
+        },
+
+        generateItemHTML(item) {
+            // 计算逻辑
+            const start = new Date(item.start_date);
+            const end = new Date(start);
+            
+            // 根据单位计算结束日期
+            if (item.unit === 'days') end.setDate(start.getDate() + parseInt(item.duration));
+            if (item.unit === 'months') end.setMonth(start.getMonth() + parseInt(item.duration));
+            if (item.unit === 'years') end.setFullYear(start.getFullYear() + parseInt(item.duration));
+
+            const now = new Date();
+            const totalMs = end - start;
+            const passedMs = now - start;
+            
+            // 计算剩余天数
+            const daysLeft = Math.ceil((end - now) / (1000 * 60 * 60 * 24));
+            
+            // 计算百分比 (0-100)
+            let percent = (passedMs / totalMs) * 100;
+            if (percent > 100) percent = 100;
+            if (percent < 0) percent = 0;
+
+            // 状态判断
+            const isExpired = daysLeft < 0;
+            let statusText = '';
+            let color = '';
+
+            if (isExpired) {
+                statusText = `已过期 ${Math.abs(daysLeft)} 天`;
+                color = 'var(--danger)';
+            } else {
+                statusText = `剩余 ${daysLeft} 天`;
+                color = (daysLeft <= 7) ? 'var(--warning)' : 'var(--primary)';
+            }
+
+            // 格式化显示的开始日期 (YYYY-MM-DD)
+            const showDate = start.toLocaleDateString();
+            const unitMap = { days: '天', months: '个月', years: '年' };
+
+            return `
+                <div class="item-card">
+                    <div class="item-top">
+                        <span>${item.name}</span>
+                        <span style="color:${color}">${statusText}</span>
+                    </div>
+                    <div class="item-sub">
+                        ${showDate} 开始 · 周期 ${item.duration}${unitMap[item.unit]}
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width:${percent}%; background:${color}"></div>
+                    </div>
+                    <button class="del-btn" onclick="app.del(${item.id})">删除</button>
+                </div>
+            `;
+        }
+    };
+
+    // 监听登录状态
+    supabase.auth.onAuthStateChange((event, session) => {
+        if (session) {
+            currentUser = session.user;
+            document.getElementById('auth-view').classList.add('hidden');
+            document.getElementById('app-view').classList.remove('hidden');
+            document.getElementById('display-email').textContent = currentUser.email;
+            app.load();
+        } else {
+            currentUser = null;
+            document.getElementById('auth-view').classList.remove('hidden');
+            document.getElementById('app-view').classList.add('hidden');
+        }
+    });
+</script>
 </body>
 </html>
