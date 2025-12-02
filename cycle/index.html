@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Life Cycle | 物品周期追踪</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --danger: #ef4444;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-light: #64748b;
+        }
+
+        body {
+            font-family: -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* 顶部区域 */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        h1 { margin: 0; font-size: 1.5rem; }
+        
+        .back-btn {
+            text-decoration: none;
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+
+        /* 输入表单区域 */
+        .input-card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+        }
+
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-size: 0.9rem; color: var(--text-light); }
+        .form-row { display: flex; gap: 10px; }
+        
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 1rem;
+        }
+
+        button#addBtn {
+            width: 100%;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button#addBtn:hover { background-color: #1d4ed8; }
+
+        /* 列表显示区域 */
+        .item-list { display: flex; flex-direction: column; gap: 15px; }
+
+        .item-card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            position: relative;
+        }
+
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .item-name { font-weight: bold; font-size: 1.1rem; }
+        
+        .badge {
+            font-size: 0.8rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .badge.active { background: #dcfce7; color: #166534; }
+        .badge.expired { background: #fee2e2; color: #991b1b; }
+
+        .dates { font-size: 0.85rem; color: var(--text-light); margin-bottom: 15px; }
+
+        /* 进度条 */
+        .progress-bg {
+            height: 8px;
+            background: #f1f5f9;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        /* 删除按钮 */
+        .delete-btn {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: none;
+            border: none;
+            color: var(--text-light);
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .delete-btn:hover { color: var(--danger); }
+
+        .empty-state { text-align: center; color: var(--text-light); margin-top: 40px; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <a href="/" class="back-btn">← 返回工具箱</a>
+        <h1>Life Cycle</h1>
+    </header>
+
+    <div class="input-card">
+        <div class="form-group">
+            <label>物品名称</label>
+            <input type="text" id="itemName" placeholder="例如：电动牙刷头">
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group" style="flex: 2;">
+                <label>开始使用日期</label>
+                <input type="date" id="startDate">
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label>有效期</label>
+                <input type="number" id="duration" placeholder="3">
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label>单位</label>
+                <select id="unit">
+                    <option value="days">天</option>
+                    <option value="months" selected>月</option>
+                    <option value="years">年</option>
+                </select>
+            </div>
+        </div>
+        <button id="addBtn">开始追踪</button>
+    </div>
+
+    <div id="itemList" class="item-list">
+        </div>
+
+    <script>
+        // 初始化：设置日期输入框默认为今天
+        document.getElementById('startDate').valueAsDate = new Date();
+
+        // 核心逻辑
+        const app = {
+            data: [],
+
+            init() {
+                // 1. 从本地存储读取数据
+                const storedData = localStorage.getItem('cycle_items');
+                if (storedData) {
+                    this.data = JSON.parse(storedData);
+                }
+                this.render();
+            },
+
+            add() {
+                const name = document.getElementById('itemName').value;
+                const start = document.getElementById('startDate').value;
+                const duration = parseInt(document.getElementById('duration').value);
+                const unit = document.getElementById('unit').value;
+
+                if (!name || !start || !duration) {
+                    alert('请完整填写信息');
+                    return;
+                }
+
+                const newItem = {
+                    id: Date.now(), // 用时间戳做唯一ID
+                    name,
+                    start,
+                    duration,
+                    unit
+                };
+
+                this.data.push(newItem);
+                this.save();
+                this.render();
+                
+                // 清空输入框
+                document.getElementById('itemName').value = '';
+                document.getElementById('duration').value = '';
+            },
+
+            delete(id) {
+                if(confirm('确定要删除这个记录吗？')) {
+                    this.data = this.data.filter(item => item.id !== id);
+                    this.save();
+                    this.render();
+                }
+            },
+
+            save() {
+                localStorage.setItem('cycle_items', JSON.stringify(this.data));
+            },
+
+            calculate(item) {
+                const startDate = new Date(item.start);
+                const today = new Date();
+                let endDate = new Date(startDate);
+
+                // 计算结束日期
+                if (item.unit === 'days') endDate.setDate(startDate.getDate() + item.duration);
+                if (item.unit === 'months') endDate.setMonth(startDate.getMonth() + item.duration);
+                if (item.unit === 'years') endDate.setFullYear(startDate.getFullYear() + item.duration);
+
+                // 计算剩余天数和总进度
+                const totalTime = endDate - startDate;
+                const timePassed = today - startDate;
+                const daysLeft = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
+                
+                let percent = (timePassed / totalTime) * 100;
+                let isExpired = false;
+
+                if (daysLeft < 0) {
+                    isExpired = true;
+                    percent = 100;
+                } else if (percent < 0) {
+                    // 如果开始日期在未来
+                    percent = 0;
+                }
+
+                return {
+                    endDateStr: endDate.toISOString().split('T')[0],
+                    daysLeft,
+                    percent,
+                    isExpired
+                };
+            },
+
+            render() {
+                const listEl = document.getElementById('itemList');
+                listEl.innerHTML = '';
+
+                if (this.data.length === 0) {
+                    listEl.innerHTML = '<div class="empty-state">这里空空如也，添加一个物品开始记录吧！</div>';
+                    return;
+                }
+
+                // 按剩余时间排序（快过期的排前面）
+                this.data.sort((a, b) => {
+                    const statusA = this.calculate(a);
+                    const statusB = this.calculate(b);
+                    return statusA.daysLeft - statusB.daysLeft;
+                });
+
+                this.data.forEach(item => {
+                    const status = this.calculate(item);
+                    
+                    // 根据状态决定颜色
+                    let color = 'var(--primary)';
+                    let statusText = `剩余 ${status.daysLeft} 天`;
+                    let badgeClass = 'active';
+
+                    if (status.isExpired) {
+                        color = 'var(--danger)';
+                        statusText = `已过期 ${Math.abs(status.daysLeft)} 天`;
+                        badgeClass = 'expired';
+                    } else if (status.daysLeft <= 7) {
+                        color = 'var(--warning)'; // 剩7天变黄
+                    }
+
+                    const html = `
+                        <div class="item-card">
+                            <div class="item-header">
+                                <div class="item-name">${item.name}</div>
+                                <div class="badge ${badgeClass}">${status.isExpired ? '已过期' : '进行中'}</div>
+                            </div>
+                            <div class="dates">
+                                开始: ${item.start} &nbsp;|&nbsp; 到期: ${status.endDateStr}
+                            </div>
+                            <div style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:5px; color:${color}; font-weight:bold;">
+                                <span>${statusText}</span>
+                                <span>${Math.min(100, Math.round(status.percent))}%</span>
+                            </div>
+                            <div class="progress-bg">
+                                <div class="progress-fill" style="width: ${status.percent}%; background-color: ${color};"></div>
+                            </div>
+                            <button class="delete-btn" onclick="app.delete(${item.id})">删除</button>
+                        </div>
+                    `;
+                    listEl.innerHTML += html;
+                });
+            }
+        };
+
+        // 绑定按钮事件
+        document.getElementById('addBtn').addEventListener('click', () => app.add());
+
+        // 启动应用
+        app.init();
+    </script>
+</body>
+</html>
