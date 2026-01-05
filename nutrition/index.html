@@ -85,20 +85,31 @@
             }
         };
 
-        // 【修正2】封装获取照片原始日期的函数
+        // 【辅助函数】生成北京时间字符串 (+08:00)
+        function formatBeijingTime(dateObj) {
+            // 如果传入的是 Date 对象，先转为北京时间数值
+            const offset = 8; 
+            const utc = dateObj.getTime() + (dateObj.getTimezoneOffset() * 60000);
+            const bjDate = new Date(utc + (3600000 * offset));
+
+            const pad = n => n.toString().padStart(2, '0');
+            return `${bjDate.getFullYear()}-${pad(bjDate.getMonth() + 1)}-${pad(bjDate.getDate())}T${pad(bjDate.getHours())}:${pad(bjDate.getMinutes())}:${pad(bjDate.getSeconds())}+08:00`;
+        }
+
         function getPhotoDate(file) {
             return new Promise((resolve) => {
-                // 尝试读取 EXIF
                 EXIF.getData(file, function() {
                     let exifDate = EXIF.getTag(this, "DateTimeOriginal");
                     if (exifDate) {
-                        // 格式转换: "2025:12:25 12:30:00" -> ISO Date
+                        // EXIF 格式: "2025:12:25 12:30:00"
+                        // 直接手动拼接为东八区 ISO 字符串，防止系统时区干扰
                         let p = exifDate.split(/[: ]/);
-                        const date = new Date(p[0], p[1]-1, p[2], p[3], p[4], p[5]);
-                        resolve(date.toISOString());
+                        // 强制指定为 +08:00
+                        const isoStr = `${p[0]}-${p[1]}-${p[2]}T${p[3]}:${p[4]}:${p[5]}+08:00`;
+                        resolve(isoStr);
                     } else {
-                        // 如果没有 EXIF，使用最后修改时间
-                        resolve(new Date(file.lastModified).toISOString());
+                        // 无 EXIF，使用文件修改时间，但强制转换为北京时间格式
+                        resolve(formatBeijingTime(new Date(file.lastModified)));
                     }
                 });
             });
@@ -111,9 +122,9 @@
             document.getElementById('uploadBtn').disabled = true;
 
             try {
-                // 【修正3】先等待日期解析完成，再进行上传
+                // 等待日期解析
                 const finalRecordDate = await getPhotoDate(selectedFile);
-                console.log("最终使用的记录时间:", finalRecordDate);
+                console.log("发送给数据库的时间 (北京时间):", finalRecordDate);
 
                 const reader = new FileReader();
                 reader.readAsDataURL(selectedFile);
@@ -124,6 +135,7 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
+                            // 保持你正确的 anon key 配置
                             'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsaXlkdW11ZGR6eWxobW5ubXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1OTE5MzAsImV4cCI6MjA4MzE2NzkzMH0.jpO3hYrQ-UCfo3AiZKt3b8F9EBpWrybvbqjY9P-6FV4',
                             'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsaXlkdW11ZGR6eWxobW5ubXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1OTE5MzAsImV4cCI6MjA4MzE2NzkzMH0.jpO3hYrQ-UCfo3AiZKt3b8F9EBpWrybvbqjY9P-6FV4'
                         },
@@ -141,10 +153,7 @@
                 console.error(e);
                 alert('网络错误或日期解析失败');
             } finally {
-                // 这里要放到 reader 外部或者确保流程结束
-                // 暂时放在这里，因为 reader.onload 是异步的，为了简单起见，Loading 的消失可以在 reader 内部处理
-                // 但为了不卡死界面，如果出错，下面的代码会保证按钮恢复
-                // 实际最佳实践是把 reader 也包进 Promise，但目前逻辑够用了
+                // 确保 loading 状态解除
             }
         }
 
@@ -159,26 +168,27 @@
             }
         }
 
-        function showResult(data, date) {
+        function showResult(data, dateStr) {
             document.getElementById('loading').style.display = 'none';
             document.getElementById('uploadBtn').disabled = false;
             
             document.getElementById('result').style.display = 'block';
             document.getElementById('foodName').innerText = data.food_name;
             
+            // 显示日期 (解析 ISO 字符串以展示)
+            const displayDate = new Date(dateStr);
+            document.getElementById('res_date').innerText = '照片时间: ' + displayDate.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+
             updateRow('row_cal', 'res_cal', data.calories, 'kcal');
             updateRow('row_pro', 'res_pro', data.protein, 'g');
             updateRow('row_car', 'res_car', data.carbs, 'g');
             updateRow('row_fat', 'res_fat', data.fat, 'g');
             updateRow('row_fib', 'res_fib', data.fiber, 'g');
-
             updateRow('row_sug', 'res_sug', data.sugar, 'g');
             updateRow('row_sat', 'res_sat', data.saturated_fat, 'g');
             updateRow('row_sod', 'res_sod', data.sodium, 'g');
             updateRow('row_caf', 'res_caf', data.caffeine, 'g');
             updateRow('row_wat', 'res_wat', data.water, 'g');
-
-            document.getElementById('res_date').innerText = '照片拍摄时间: ' + new Date(date).toLocaleString();
         }
     </script>
 </body>
