@@ -95,36 +95,40 @@
             return dd;
         }
 
-        // 【核心】同时获取 日期 和 GPS
+        // 【调试版】同时获取 日期 和 GPS
         function getPhotoMeta(file) {
             return new Promise((resolve) => {
                 EXIF.getData(file, function() {
+                    console.log("EXIF 数据全集:", this.exifdata); // 在控制台打印所有数据
+
                     const meta = { date: null, lat: null, lon: null };
 
-                    // 1. 解析时间
-                    let exifDate = EXIF.getTag(this, "DateTimeOriginal");
-                    if (exifDate) {
-                        let p = exifDate.split(/[: ]/);
-                        // 强制北京时间 +08:00
-                        meta.date = `${p[0]}-${p[1]}-${p[2]}T${p[3]}:${p[4]}:${p[5]}+08:00`;
-                    } else {
-                        // 无 EXIF 时间则用文件时间
-                        const d = new Date(file.lastModified);
-                        const pad = n => n.toString().padStart(2, '0');
-                        const bjTime = d.getTime() + (d.getTimezoneOffset() * 60000) + (8 * 3600000);
-                        const bDate = new Date(bjTime);
-                        meta.date = `${bDate.getFullYear()}-${pad(bDate.getMonth()+1)}-${pad(bDate.getDate())}T${pad(bDate.getHours())}:${pad(bDate.getMinutes())}:${pad(bDate.getSeconds())}+08:00`;
-                    }
-
-                    // 2. 解析 GPS
+                    // 1. 解析 GPS
                     const latRaw = EXIF.getTag(this, "GPSLatitude");
                     const latRef = EXIF.getTag(this, "GPSLatitudeRef");
                     const lonRaw = EXIF.getTag(this, "GPSLongitude");
                     const lonRef = EXIF.getTag(this, "GPSLongitudeRef");
 
-                    if (latRaw && lonRaw && latRef && lonRef) {
+                    // 【调试弹窗】
+                    if (!latRaw) {
+                        alert("⚠️ 这张照片不包含 GPS 经纬度信息！\n可能原因：微信保存的图、或是相机未开启定位权限。");
+                    } else {
                         meta.lat = convertDMSToDD(latRaw[0], latRaw[1], latRaw[2], latRef);
                         meta.lon = convertDMSToDD(lonRaw[0], lonRaw[1], lonRaw[2], lonRef);
+                        alert(`✅ 成功获取坐标:\n经度: ${meta.lon}\n纬度: ${meta.lat}`);
+                    }
+
+                    // 2. 解析时间
+                    let exifDate = EXIF.getTag(this, "DateTimeOriginal");
+                    if (exifDate) {
+                        let p = exifDate.split(/[: ]/);
+                        meta.date = `${p[0]}-${p[1]}-${p[2]}T${p[3]}:${p[4]}:${p[5]}+08:00`;
+                    } else {
+                        const d = new Date(file.lastModified);
+                        const pad = n => n.toString().padStart(2, '0');
+                        const bjTime = d.getTime() + (d.getTimezoneOffset() * 60000) + (8 * 3600000);
+                        const bDate = new Date(bjTime);
+                        meta.date = `${bDate.getFullYear()}-${pad(bDate.getMonth()+1)}-${pad(bDate.getDate())}T${pad(bDate.getHours())}:${pad(bDate.getMinutes())}:${pad(bDate.getSeconds())}+08:00`;
                     }
 
                     resolve(meta);
@@ -141,8 +145,7 @@
             try {
                 // 等待元数据解析
                 const meta = await getPhotoMeta(selectedFile);
-                console.log("元数据:", meta);
-
+                
                 const reader = new FileReader();
                 reader.readAsDataURL(selectedFile);
                 reader.onload = async () => {
@@ -152,14 +155,13 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            // 保持你的 Key 不变
                             'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsaXlkdW11ZGR6eWxobW5ubXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1OTE5MzAsImV4cCI6MjA4MzE2NzkzMH0.jpO3hYrQ-UCfo3AiZKt3b8F9EBpWrybvbqjY9P-6FV4',
                             'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsaXlkdW11ZGR6eWxobW5ubXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1OTE5MzAsImV4cCI6MjA4MzE2NzkzMH0.jpO3hYrQ-UCfo3AiZKt3b8F9EBpWrybvbqjY9P-6FV4'
                         },
                         body: JSON.stringify({
                             imageBase64: base64Data,
                             record_date: meta.date,
-                            lat: meta.lat, // 新增：传经纬度给后端
+                            lat: meta.lat,
                             lon: meta.lon
                         })
                     });
@@ -172,6 +174,7 @@
                 console.error(e);
                 alert('网络错误');
             } finally {
+               // loading hide logic
             }
         }
 
@@ -193,13 +196,16 @@
             document.getElementById('result').style.display = 'block';
             document.getElementById('foodName').innerText = data.food_name;
             
-            // 显示时间
             const displayDate = new Date(meta.date);
             document.getElementById('res_date').innerText = '时间: ' + displayDate.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
             
-            // 显示坐标 (如果解析成功)
-            if (meta.lat) {
+            // 显示后端查回来的地名，或者降级显示坐标
+            if (data.location_name) {
+                document.getElementById('res_loc').innerText = `📍 地点: ${data.location_name}`;
+            } else if (meta.lat) {
                 document.getElementById('res_loc').innerText = `📍 坐标: ${meta.lat.toFixed(4)}, ${meta.lon.toFixed(4)}`;
+            } else {
+                document.getElementById('res_loc').innerText = `📍 地点: 未知 (无GPS信息)`;
             }
 
             updateRow('row_cal', 'res_cal', data.calories, 'kcal');
@@ -214,5 +220,6 @@
             updateRow('row_wat', 'res_wat', data.water, 'g');
         }
     </script>
+    
 </body>
 </html>
