@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>每日营养记录</title>
+    <style>
+        :root { --primary: #007AFF; --success: #34C759; --bg: #F2F2F7; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); margin: 0; display: flex; justify-content: center; padding: 20px; }
+        .container { width: 100%; max-width: 400px; }
+        .card { background: white; border-radius: 20px; padding: 24px; box-shadow: 0 8px 30px rgba(0,0,0,0.05); margin-bottom: 20px; text-align: center; }
+        h1 { font-size: 22px; font-weight: 700; margin: 0 0 20px 0; color: #1C1C1E; }
+        #preview { width: 100%; border-radius: 12px; margin-bottom: 20px; display: none; object-fit: cover; max-height: 300px; }
+        .btn-group { display: flex; gap: 10px; flex-direction: column; }
+        .btn { border: none; padding: 16px; border-radius: 14px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:active { transform: scale(0.98); opacity: 0.9; }
+        .btn-outline { background: #E5E5EA; color: #3A3A3C; }
+        #loading { display: none; margin: 20px 0; color: var(--primary); font-weight: 500; }
+        .result-card { background: #F9F9FB; border-radius: 15px; padding: 16px; margin-top: 20px; text-align: left; display: none; }
+        .result-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #EDEDF0; }
+        .result-row:last-child { border: none; }
+        .label { color: #8E8E93; }
+        .value { font-weight: 600; color: #1C1C1E; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <h1>🍎 AI 饮食管家</h1>
+        <img id="preview">
+        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+        
+        <div class="btn-group">
+            <button class="btn btn-outline" onclick="triggerInput('camera')">📸 拍照录入</button>
+            <button class="btn btn-outline" onclick="triggerInput('album')">🖼️ 从相册选择</button>
+            <button class="btn btn-primary" id="uploadBtn" style="display: none;" onclick="upload()">开始 AI 智能识别</button>
+        </div>
+
+        <div id="loading">✨ AI 正在努力分析中...</div>
+
+        <div id="result" class="result-card">
+            <div style="font-weight: bold; font-size: 18px; margin-bottom: 12px;" id="foodName"></div>
+            <div class="result-row"><span class="label">热量</span><span class="value" id="res_cal"></span></div>
+            <div class="result-row"><span class="label">蛋白质</span><span class="value" id="res_pro"></span></div>
+            <div class="result-row"><span class="label">碳水</span><span class="value" id="res_car"></span></div>
+            <div class="result-row"><span class="label">脂肪</span><span class="value" id="res_fat"></span></div>
+            <div class="result-row"><span class="label">纤维</span><span class="value" id="res_fib"></span></div>
+            <div style="font-size: 12px; color: #AEAEB2; margin-top: 10px;" id="res_date"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let selectedFile = null;
+    const fileInput = document.getElementById('fileInput');
+
+    function triggerInput(mode) {
+        if(mode === 'camera') fileInput.setAttribute('capture', 'camera');
+        else fileInput.removeAttribute('capture');
+        fileInput.click();
+    }
+
+    fileInput.onchange = e => {
+        selectedFile = e.target.files[0];
+        if (selectedFile) {
+            const reader = new FileReader();
+            reader.onload = event => {
+                document.getElementById('preview').src = event.target.result;
+                document.getElementById('preview').style.display = 'block';
+                document.getElementById('uploadBtn').style.display = 'block';
+                document.getElementById('result').style.display = 'none';
+            };
+            reader.readAsDataURL(selectedFile);
+        }
+    };
+
+    async function upload() {
+        if (!selectedFile) return;
+        
+        // 获取时间：优先读取照片拍摄时间（lastModified）
+        const recordDate = new Date(selectedFile.lastModified).toISOString();
+        
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('uploadBtn').disabled = true;
+
+        const reader = new FileReader();
+        reader.readAsDataURL(selectedFile);
+        reader.onload = async () => {
+            const base64Data = reader.result.split(',')[1];
+            
+            try {
+                const response = await fetch('你的_SUPABASE_FUNCTION_URL', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        imageBase64: base64Data,
+                        record_date: recordDate 
+                    })
+                });
+                
+                const res = await response.json();
+                if (res.success) showResult(res.data, recordDate);
+                else alert('识别失败: ' + res.error);
+            } catch (e) {
+                alert('网络错误');
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('uploadBtn').disabled = false;
+            }
+        };
+    }
+
+    function showResult(data, date) {
+        document.getElementById('result').style.display = 'block';
+        document.getElementById('foodName').innerText = data.food_name;
+        document.getElementById('res_cal').innerText = data.calories + ' kcal';
+        document.getElementById('res_pro').innerText = data.protein + ' g';
+        document.getElementById('res_car').innerText = data.carbs + ' g';
+        document.getElementById('res_fat').innerText = data.fat + ' g';
+        document.getElementById('res_fib').innerText = data.fiber + ' g';
+        document.getElementById('res_date').innerText = '记录时间: ' + new Date(date).toLocaleString();
+    }
+</script>
+</body>
+</html>
