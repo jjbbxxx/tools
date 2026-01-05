@@ -86,39 +86,60 @@
             }
         };
 
-        // 辅助：度分秒转十进制
+        // 【修复】更强壮的转换函数
         function convertDMSToDD(degrees, minutes, seconds, direction) {
-            var dd = degrees + minutes/60 + seconds/(60*60);
-            if (direction == "S" || direction == "W") {
+            // 1. 安全取值：转为浮点数，如果是 NaN 则变成 0
+            const d = parseFloat(degrees) || 0;
+            const m = parseFloat(minutes) || 0;
+            const s = parseFloat(seconds) || 0;
+            
+            // 2. 核心公式
+            let dd = d + (m / 60) + (s / 3600);
+            
+            // 3. 处理方向 (S=南纬, W=西经 为负数)
+            // 有些手机可能不存 Ref，如果 Ref 是 undefined，默认当做正数处理
+            if (direction && (direction === "S" || direction === "W")) {
                 dd = dd * -1;
             }
             return dd;
         }
 
-        // 【调试版】同时获取 日期 和 GPS
+        // 【修复】获取元数据
         function getPhotoMeta(file) {
             return new Promise((resolve) => {
                 EXIF.getData(file, function() {
-                    console.log("EXIF 数据全集:", this.exifdata); // 在控制台打印所有数据
-
                     const meta = { date: null, lat: null, lon: null };
 
-                    // 1. 解析 GPS
+                    // --- 调试日志：看看原始数据到底长啥样 ---
                     const latRaw = EXIF.getTag(this, "GPSLatitude");
-                    const latRef = EXIF.getTag(this, "GPSLatitudeRef");
                     const lonRaw = EXIF.getTag(this, "GPSLongitude");
+                    console.log("原始纬度数据:", latRaw);
+                    console.log("原始经度数据:", lonRaw);
+                    // -------------------------------------
+
+                    // 1. 解析 GPS (增加空值检查)
+                    const latRef = EXIF.getTag(this, "GPSLatitudeRef");
                     const lonRef = EXIF.getTag(this, "GPSLongitudeRef");
 
-                    // 【调试弹窗】
-                    if (!latRaw) {
-                        alert("⚠️ 这张照片不包含 GPS 经纬度信息！\n可能原因：微信保存的图、或是相机未开启定位权限。");
-                    } else {
+                    // 只要拿到数组，并且至少有一个数，我们就尝试转换
+                    if (latRaw && latRaw.length >= 2 && lonRaw && lonRaw.length >= 2) {
                         meta.lat = convertDMSToDD(latRaw[0], latRaw[1], latRaw[2], latRef);
                         meta.lon = convertDMSToDD(lonRaw[0], lonRaw[1], lonRaw[2], lonRef);
-                        alert(`✅ 成功获取坐标:\n经度: ${meta.lon}\n纬度: ${meta.lat}`);
+                        
+                        // 再次检查结果是否为 NaN
+                        if (isNaN(meta.lat) || isNaN(meta.lon)) {
+                            console.error("计算结果为 NaN，原始数据格式可能异常");
+                            alert("⚠️ 获取到 GPS 数据，但格式无法解析 (NaN)。请看控制台日志。");
+                            meta.lat = null;
+                            meta.lon = null;
+                        } else {
+                            console.log(`✅ 坐标解析成功: ${meta.lat}, ${meta.lon}`);
+                        }
+                    } else {
+                        console.log("无完整 GPS 数据");
                     }
 
-                    // 2. 解析时间
+                    // 2. 解析时间 (逻辑不变)
                     let exifDate = EXIF.getTag(this, "DateTimeOriginal");
                     if (exifDate) {
                         let p = exifDate.split(/[: ]/);
@@ -126,8 +147,12 @@
                     } else {
                         const d = new Date(file.lastModified);
                         const pad = n => n.toString().padStart(2, '0');
-                        const bjTime = d.getTime() + (d.getTimezoneOffset() * 60000) + (8 * 3600000);
-                        const bDate = new Date(bjTime);
+                        // 强制北京时间 +08:00
+                        const offset = 8 * 60; // 分钟
+                        const localOffset = d.getTimezoneOffset(); // 分钟
+                        const targetTime = d.getTime() + (offset + localOffset) * 60000;
+                        const bDate = new Date(targetTime);
+                        
                         meta.date = `${bDate.getFullYear()}-${pad(bDate.getMonth()+1)}-${pad(bDate.getDate())}T${pad(bDate.getHours())}:${pad(bDate.getMinutes())}:${pad(bDate.getSeconds())}+08:00`;
                     }
 
@@ -143,7 +168,6 @@
             document.getElementById('uploadBtn').disabled = true;
 
             try {
-                // 等待元数据解析
                 const meta = await getPhotoMeta(selectedFile);
                 
                 const reader = new FileReader();
@@ -174,7 +198,7 @@
                 console.error(e);
                 alert('网络错误');
             } finally {
-               // loading hide logic
+               // loading logic
             }
         }
 
@@ -199,13 +223,13 @@
             const displayDate = new Date(meta.date);
             document.getElementById('res_date').innerText = '时间: ' + displayDate.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
             
-            // 显示后端查回来的地名，或者降级显示坐标
+            // 优先显示后端查到的中文地名
             if (data.location_name) {
                 document.getElementById('res_loc').innerText = `📍 地点: ${data.location_name}`;
             } else if (meta.lat) {
                 document.getElementById('res_loc').innerText = `📍 坐标: ${meta.lat.toFixed(4)}, ${meta.lon.toFixed(4)}`;
             } else {
-                document.getElementById('res_loc').innerText = `📍 地点: 未知 (无GPS信息)`;
+                document.getElementById('res_loc').innerText = "";
             }
 
             updateRow('row_cal', 'res_cal', data.calories, 'kcal');
@@ -220,6 +244,6 @@
             updateRow('row_wat', 'res_wat', data.water, 'g');
         }
     </script>
-    
+
 </body>
 </html>
