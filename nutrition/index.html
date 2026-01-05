@@ -157,6 +157,65 @@
 
     <script>
         let selectedFile = null;
+
+        // 将 EXIF 解析封装为异步函数
+    function getPhotoDate(file) {
+        return new Promise((resolve) => {
+            EXIF.getData(file, function() {
+                let exifDate = EXIF.getTag(this, "DateTimeOriginal");
+                if (exifDate) {
+                    // 格式转换: "2025:12:25 12:30:00" -> ISO Date
+                    let p = exifDate.split(/[: ]/);
+                    resolve(new Date(p[0], p[1]-1, p[2], p[3], p[4], p[5]).toISOString());
+                } else {
+                    // 退而求其次使用文件修改时间
+                    resolve(new Date(file.lastModified).toISOString());
+                }
+            });
+        });
+    }
+
+    async function upload() {
+        if (!selectedFile) return;
+        
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('uploadBtn').disabled = true;
+
+        try {
+            // 【核心修复】必须等待日期解析完成
+            const finalRecordDate = await getPhotoDate(selectedFile);
+            console.log("准备存入数据库的时间:", finalRecordDate);
+
+            const reader = new FileReader();
+            reader.readAsDataURL(selectedFile);
+            reader.onload = async () => {
+                const base64Data = reader.result.split(',')[1];
+                
+                const response = await fetch('你的_FUNCTION_URL', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': '你的_ANON_KEY',
+                        'Authorization': 'Bearer 你的_ANON_KEY'
+                    },
+                    body: JSON.stringify({
+                        imageBase64: base64Data,
+                        record_date: finalRecordDate // 确保发给后端的是真实的拍摄时间
+                    })
+                });
+
+                const res = await response.json();
+                if (res.success) showResult(res.data, finalRecordDate);
+                else alert('识别失败: ' + res.error);
+            };
+        } catch (e) {
+            alert('获取照片日期或识别失败');
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('uploadBtn').disabled = false;
+        }
+    }
+    
         const fileInput = document.getElementById('fileInput');
 
         function triggerInput(mode) {
