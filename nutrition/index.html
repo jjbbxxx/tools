@@ -1117,7 +1117,9 @@
             try {
                 const { data, error } = await db.from('nutrition_logs').select('*')
                     .gte('record_date', start.toISOString()).lte('record_date', end.toISOString())
-                    .order('record_date', { ascending: false });
+                    // 👇👇👇 核心修改：改成 ascending: true (按时间正序：早 -> 晚)
+                    .order('record_date', { ascending: true }); 
+                
                 if (error) throw error;
                 renderList(data);
             } catch (e) {
@@ -1172,7 +1174,7 @@
 
                 let metricsHtml = `
                     <div class="metric-item"><span class="m-val">${log.carbs || 0}</span><span class="m-label">碳水</span></div>
-                    <div class="metric-item"><span class="m-val">${log.protein || 0}</span><span class="m-label">蛋白</span></div>
+                    <div class="metric-item"><span class="m-val">${log.protein || 0}</span><span class="m-label">蛋白质</span></div>
                     <div class="metric-item"><span class="m-val">${log.fat || 0}</span><span class="m-label">脂肪</span></div>
                 `;
                 const opts = [{ k: 'fiber', l: '纤维' }, { k: 'sugar', l: '糖' }, { k: 'sodium', l: '钠' }, { k: 'caffeine', l: '咖啡因' }];
@@ -1234,7 +1236,7 @@
                         else { if (height > MAX_DIM) { width *= MAX_DIM / height; height = MAX_DIM; } }
                         canvas.width = width; canvas.height = height;
                         const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
-                        resolve(canvas.toDataURL('image/jpeg', 0.95).split(',')[1]);
+                        resolve(canvas.toDataURL('image/jpeg', 0.8).split(',')[1]);
                     };
                 };
             });
@@ -1262,34 +1264,75 @@
         document.getElementById('fileInput').onchange = async function (e) {
             const files = e.target.files;
             if (!files || files.length === 0) return;
+            
             const mask = document.getElementById('upload-mask');
             const maskText = document.getElementById('mask-text');
             mask.style.display = 'flex';
+            
+            // 1. 准备阶段：把所有图片处理好，存进数组
+            const batchImages = [];
+            
             try {
                 for (let i = 0; i < files.length; i++) {
                     const file = files[i];
-                    maskText.innerText = `正在处理第 ${i + 1} / ${files.length} 张...`;
+                    maskText.innerText = `正在压缩第 ${i + 1} / ${files.length} 张图片...`;
+                    
+                    // 使用 1200px / 0.7 压缩逻辑，保证总包体不超过 Edge Function 限制
                     const base64 = await processHighQualityImage(file);
                     let recordDate = await getPhotoDate(file);
                     if (!recordDate) recordDate = new Date().toISOString();
+                    
+                    batchImages.push({
+                        base64: base64,
+                        date: recordDate
+                    });
+                }
+
+                // 2. 发送阶段：一次性发送！
+                if (batchImages.length > 0) {
+                    maskText.innerText = `正在 AI 统一分析 ${batchImages.length} 张图片...\n(请求大模型中，请耐心等待)`;
+                    
                     const res = await fetch(CONFIG.funcUrl, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.key, 'Authorization': 'Bearer ' + CONFIG.key },
-                        body: JSON.stringify({ imageBase64: base64, record_date: recordDate })
+                        headers: { 
+                            'Content-Type': 'application/json', 
+                            'apikey': CONFIG.key, 
+                            'Authorization': 'Bearer ' + CONFIG.key 
+                        },
+                        body: JSON.stringify({ 
+                            mode: 'batch_analyze', // 触发新分支
+                            images: batchImages    // 发送数组
+                        })
                     });
+                    
+                    if (!res.ok) throw new Error(`Server Error: ${res.status}`);
+                    
                     const json = await res.json();
                     if (json.success) {
-                        recordedDates.add(recordDate.split('T')[0]);
-                        // --- 新增：立刻解锁新日期，让它变成可点击 ---
+                        // 成功后，把所有日期都加到日历里
+                        batchImages.forEach(img => recordedDates.add(img.date.split('T')[0]));
                         updateCalendarConfig();
+                        
+                        // 刷新界面
+                        if (calendarInstance) calendarInstance.redraw();
+                        loadData(currentDate);
+                        
+                        alert(`✅ 成功！一次性处理了 ${json.count} 条记录。`);
+                    } else {
+                        throw new Error(json.error || 'Unknown error');
                     }
-                    else console.error('上传失败:', json.error);
                 }
-                if (calendarInstance) calendarInstance.redraw();
-                loadData(currentDate);
-                alert(`✅ 全部处理完成！`);
-            } catch (err) { alert('❌ 错误: ' + err.message); } finally { mask.style.display = 'none'; this.value = ''; }
+
+            } catch (err) {
+                console.error(err);
+                alert('❌ 错误: ' + err.message);
+            } finally {
+                mask.style.display = 'none';
+                this.value = ''; 
+            }
         };
+
+
         // --- 放在 script 标签最底部的全局函数 (替换旧版) ---
 
     // 1. 智能切换日期 (跳过空窗期)

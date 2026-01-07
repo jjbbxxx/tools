@@ -1,0 +1,8 @@
+# .gitignore 文件内容
+
+# 忽略 images 文件夹下的所有内容
+nutrition_images/
+
+# 或者忽略所有 jpg/png 文件
+*.jpg
+*.png
