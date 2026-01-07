@@ -2,248 +2,331 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>每日营养记录</title>
-    <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>AI 饮食管家</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    
+    <script src="https://lib.baomitu.com/exif-js/2.3.0/exif.min.js"></script>
+    <link rel="stylesheet" href="https://lib.baomitu.com/flatpickr/4.6.13/flatpickr.min.css">
+    <script src="https://lib.baomitu.com/flatpickr/4.6.13/flatpickr.min.js"></script>
+    <script>
+    // 手动注册中文语言包，彻底解决 CDN 报错问题
+    (function (global, factory) {
+        typeof exports === 'object' && typeof module !== 'undefined' ? factory(global.flatpickr) :
+        typeof define === 'function' && define.amd ? define(['flatpickr'], factory) :
+        (factory(global.flatpickr));
+    }(this, (function (flatpickr) { 'use strict';
+        var fp = flatpickr.l10ns;
+        var zh = {
+            weekdays: {
+                shorthand: ["周日", "周一", "周二", "周三", "周四", "周五", "周六"],
+                longhand: ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"]
+            },
+            months: {
+                shorthand: ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"],
+                longhand: ["一月", "二月", "三月", "四月", "五月", "六月", "七月", "八月", "九月", "十月", "十一月", "十二月"]
+            },
+            rangeSeparator: " 至 ",
+            weekAbbreviation: "周",
+            scrollTitle: "滚动切换",
+            toggleTitle: "点击切换 12/24 小时时制"
+        };
+        fp.zh = zh;
+        fp.default.l10n = zh; // 设置为默认
+    })));
+</script>
+
     <style>
-        :root { --primary: #007AFF; --success: #34C759; --bg: #F2F2F7; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); margin: 0; display: flex; justify-content: center; padding: 20px; }
-        .container { width: 100%; max-width: 400px; }
-        .card { background: white; border-radius: 20px; padding: 24px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05); margin-bottom: 20px; text-align: center; }
-        h1 { font-size: 22px; font-weight: 700; margin: 0 0 20px 0; color: #1C1C1E; }
-        #preview { width: 100%; border-radius: 12px; margin-bottom: 20px; display: none; object-fit: cover; max-height: 300px; }
-        .btn-group { display: flex; gap: 10px; flex-direction: column; }
-        .btn { border: none; padding: 16px; border-radius: 14px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-primary:active { transform: scale(0.98); opacity: 0.9; }
-        .btn-outline { background: #E5E5EA; color: #3A3A3C; }
-        #loading { display: none; margin: 20px 0; color: var(--primary); font-weight: 500; }
-        .result-card { background: #F9F9FB; border-radius: 15px; padding: 16px; margin-top: 20px; text-align: left; display: none; }
-        .result-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #EDEDF0; }
-        .result-row:last-child { border: none; }
-        .label { color: #8E8E93; }
-        .value { font-weight: 600; color: #1C1C1E; }
+        /* UI 样式 (保持你喜欢的样子) */
+        :root { --primary: #007AFF; --bg: #F2F2F7; --card-bg: #FFFFFF; --text-main: #000000; --text-sub: #8E8E93; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif; background: var(--bg); margin: 0; padding-bottom: 120px; color: var(--text-main); }
+        .header { position: sticky; top: 0; background: rgba(242, 242, 247, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); padding: 16px 20px; z-index: 100; border-bottom: 1px solid rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
+        .header-title { font-size: 24px; font-weight: 700; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+        .header-title small { font-size: 14px; font-weight: 400; color: var(--primary); background: rgba(0,122,255,0.1); padding: 4px 10px; border-radius: 12px; }
+        .total-badge { text-align: right; }
+        .total-val { font-size: 18px; font-weight: 700; color: var(--primary); }
+        .total-label { font-size: 11px; color: var(--text-sub); }
+        .container { padding: 16px; max-width: 600px; margin: 0 auto; }
+        .meal-card { background: var(--card-bg); border-radius: 18px; padding: 16px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); display: flex; gap: 16px; align-items: flex-start; transition: transform 0.1s; position: relative; overflow: hidden; }
+        .meal-card:active { transform: scale(0.98); background: #f9f9f9; }
+        .meal-img { width: 80px; height: 80px; border-radius: 14px; object-fit: cover; background: #f0f0f0; flex-shrink: 0; border: 1px solid rgba(0,0,0,0.05); }
+        .meal-content { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; height: 80px; }
+        .meal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .meal-cal { font-size: 16px; font-weight: 700; color: var(--primary); }
+        .meal-name { font-size: 17px; font-weight: 600; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .meal-tags { display: flex; gap: 8px; font-size: 12px; color: var(--text-sub); }
+        .tag { background: #F2F2F7; padding: 2px 6px; border-radius: 6px; }
+        .fab-bar { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; gap: 16px; background: rgba(255,255,255,0.9); backdrop-filter: blur(15px); padding: 10px 16px; border-radius: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); border: 1px solid rgba(0,0,0,0.05); }
+        .fab-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 60px; height: 60px; border-radius: 20px; border: none; cursor: pointer; transition: all 0.2s; }
+        .fab-primary { background: var(--primary); color: white; box-shadow: 0 4px 15px rgba(0,122,255,0.4); }
+        .fab-primary:active { transform: scale(0.92); }
+        .fab-secondary { background: #E5E5EA; color: var(--text-main); }
+        .fab-secondary:active { background: #d1d1d6; }
+        .fab-icon { font-size: 24px; margin-bottom: 2px; }
+        .fab-label { font-size: 10px; font-weight: 600; }
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--text-sub); }
+        .loading-spinner { width: 20px; height: 20px; border: 2px solid #e1e1e1; border-top: 2px solid var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #upload-mask { position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 300; display: none; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
+        .big-spinner { width: 50px; height: 50px; border: 5px solid #eee; border-top: 5px solid var(--primary); border-radius: 50%; animation: spin 1s infinite; }
     </style>
 </head>
-
 <body>
-    <div class="container">
-        <div class="card">
-            <h1>🍎 AI 饮食管家</h1>
-            <img id="preview">
-            <input type="file" id="fileInput" accept="image/*" style="display: none;">
 
-            <div class="btn-group">
-                <button class="btn btn-outline" onclick="triggerInput('camera')">📸 拍照录入</button>
-                <button class="btn btn-outline" onclick="triggerInput('album')">🖼️ 从相册选择</button>
-                <button class="btn btn-primary" id="uploadBtn" style="display: none;" onclick="upload()">开始 AI 智能识别</button>
-            </div>
-
-            <div id="loading">✨ AI 正在努力分析中...</div>
-
-            <div id="result" class="result-card">
-                <div style="font-weight: bold; font-size: 18px; margin-bottom: 12px;" id="foodName"></div>
-                
-                <div class="result-row" id="row_cal"><span class="label">Dietary Energy</span><span class="value" id="res_cal"></span></div>
-                <div class="result-row" id="row_pro"><span class="label">Protein</span><span class="value" id="res_pro"></span></div>
-                <div class="result-row" id="row_car"><span class="label">Carbohydrates</span><span class="value" id="res_car"></span></div>
-                <div class="result-row" id="row_fat"><span class="label">Total Fat</span><span class="value" id="res_fat"></span></div>
-                <div class="result-row" id="row_fib"><span class="label">Fiber</span><span class="value" id="res_fib"></span></div>
-                
-                <div class="result-row" id="row_sug" style="display:none"><span class="label">Dietary Sugar</span><span class="value" id="res_sug"></span></div>
-                <div class="result-row" id="row_sat" style="display:none"><span class="label">Saturated Fat</span><span class="value" id="res_sat"></span></div>
-                <div class="result-row" id="row_sod" style="display:none"><span class="label">Sodium</span><span class="value" id="res_sod"></span></div>
-                <div class="result-row" id="row_caf" style="display:none"><span class="label">Caffeine</span><span class="value" id="res_caf"></span></div>
-                <div class="result-row" id="row_wat" style="display:none"><span class="label">Water</span><span class="value" id="res_wat"></span></div>
-
-                <div style="font-size: 12px; color: #AEAEB2; margin-top: 10px;" id="res_date"></div>
-                <div style="font-size: 12px; color: #007AFF; margin-top: 4px;" id="res_loc"></div>
-            </div>
+    <div class="header">
+        <div class="header-title" id="datePickerBtn">
+            <span id="headerDateStr">今天</span>
+            <small>▼</small>
+        </div>
+        <div class="total-badge">
+            <div class="total-val" id="dayTotal">0</div>
+            <div class="total-label">今日摄入 (kcal)</div>
         </div>
     </div>
 
+    <div class="container" id="listContainer">
+        <div class="empty-state">
+            <div class="loading-spinner"></div>
+            <p style="margin-top:10px; font-size:14px;">正在连接云端数据...</p>
+        </div>
+    </div>
+
+    <div class="fab-bar">
+        <button class="fab-btn fab-secondary" onclick="safeTrigger('album')">
+            <span class="fab-icon">🖼️</span>
+            <span class="fab-label">相册</span>
+        </button>
+        <button class="fab-btn fab-primary" onclick="safeTrigger('camera')">
+            <span class="fab-icon">📸</span>
+            <span class="fab-label">拍照</span>
+        </button>
+    </div>
+
+    <input type="file" id="fileInput" accept="image/*" style="display:none">
+
+    <div id="upload-mask">
+        <div class="big-spinner"></div>
+        <h3 style="margin: 20px 0 8px 0; color: #333;">AI 正在分析...</h3>
+        <p style="color: #666; font-size: 14px;">识别食材 · 估算热量 · 生成记录</p>
+    </div>
+
     <script>
-        let selectedFile = null;
-        const fileInput = document.getElementById('fileInput');
+        const CONFIG = {
+            url: 'https://kliydumuddzylhmnnmyt.supabase.co',
+            key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsaXlkdW11ZGR6eWxobW5ubXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1OTE5MzAsImV4cCI6MjA4MzE2NzkzMH0.jpO3hYrQ-UCfo3AiZKt3b8F9EBpWrybvbqjY9P-6FV4',
+            funcUrl: 'https://kliydumuddzylhmnnmyt.supabase.co/functions/v1/nutrition'
+        };
 
-        function triggerInput(mode) {
-            if (mode === 'camera') fileInput.setAttribute('capture', 'camera');
-            else fileInput.removeAttribute('capture');
-            fileInput.click();
-        }
-
-        fileInput.onchange = e => {
-            selectedFile = e.target.files[0];
-            if (selectedFile) {
-                const reader = new FileReader();
-                reader.onload = event => {
-                    document.getElementById('preview').src = event.target.result;
-                    document.getElementById('preview').style.display = 'block';
-                    document.getElementById('uploadBtn').style.display = 'block';
-                    document.getElementById('result').style.display = 'none';
-                };
-                reader.readAsDataURL(selectedFile);
+        // 【修改】改名叫 db，避免和 window.supabase 冲突
+        let db = null;
+        let currentDate = new Date();
+        
+        window.onload = function() {
+            // 1. 初始化 Supabase
+            // 只要上面的 script 标签加载成功，window.supabase 就一定存在
+            if (window.supabase && window.supabase.createClient) {
+                db = window.supabase.createClient(CONFIG.url, CONFIG.key);
+                console.log("✅ 数据库连接成功");
+                initCalendar();
+                loadData(currentDate);
+            } else {
+                document.getElementById('listContainer').innerHTML = `
+                    <div class="empty-state" style="color: red;">
+                        ⚠️ 网络错误：核心库加载失败<br>请检查 VPN 或刷新页面
+                    </div>`;
             }
         };
 
-        // 【修复】更强壮的转换函数
-        function convertDMSToDD(degrees, minutes, seconds, direction) {
-            // 1. 安全取值：转为浮点数，如果是 NaN 则变成 0
-            const d = parseFloat(degrees) || 0;
-            const m = parseFloat(minutes) || 0;
-            const s = parseFloat(seconds) || 0;
-            
-            // 2. 核心公式
-            let dd = d + (m / 60) + (s / 3600);
-            
-            // 3. 处理方向 (S=南纬, W=西经 为负数)
-            // 有些手机可能不存 Ref，如果 Ref 是 undefined，默认当做正数处理
-            if (direction && (direction === "S" || direction === "W")) {
-                dd = dd * -1;
+        function initCalendar() {
+            // 检查日历库是否坏了
+            if (typeof flatpickr === 'undefined') {
+                console.warn("日历组件加载失败");
+                return;
             }
-            return dd;
+            flatpickr("#datePickerBtn", {
+                defaultDate: "today",
+                locale: "zh",
+                disableMobile: true,
+                onChange: function(selectedDates) {
+                    currentDate = selectedDates[0];
+                    updateHeaderDate();
+                    loadData(currentDate);
+                }
+            });
+            updateHeaderDate();
         }
 
-        // 【修复】获取元数据
-        function getPhotoMeta(file) {
-            return new Promise((resolve) => {
-                EXIF.getData(file, function() {
-                    const meta = { date: null, lat: null, lon: null };
+        function updateHeaderDate() {
+            const today = new Date();
+            const isToday = currentDate.toDateString() === today.toDateString();
+            const str = isToday ? "今天" : `${currentDate.getMonth() + 1}月${currentDate.getDate()}日`;
+            document.getElementById('headerDateStr').innerText = str;
+        }
 
-                    // --- 调试日志：看看原始数据到底长啥样 ---
-                    const latRaw = EXIF.getTag(this, "GPSLatitude");
-                    const lonRaw = EXIF.getTag(this, "GPSLongitude");
-                    console.log("原始纬度数据:", latRaw);
-                    console.log("原始经度数据:", lonRaw);
-                    // -------------------------------------
+        async function loadData(date) {
+            if (!db) return;
 
-                    // 1. 解析 GPS (增加空值检查)
-                    const latRef = EXIF.getTag(this, "GPSLatitudeRef");
-                    const lonRef = EXIF.getTag(this, "GPSLongitudeRef");
+            const listEl = document.getElementById('listContainer');
+            listEl.innerHTML = '<div class="empty-state"><div class="loading-spinner"></div></div>';
 
-                    // 只要拿到数组，并且至少有一个数，我们就尝试转换
-                    if (latRaw && latRaw.length >= 2 && lonRaw && lonRaw.length >= 2) {
-                        meta.lat = convertDMSToDD(latRaw[0], latRaw[1], latRaw[2], latRef);
-                        meta.lon = convertDMSToDD(lonRaw[0], lonRaw[1], lonRaw[2], lonRef);
-                        
-                        // 再次检查结果是否为 NaN
-                        if (isNaN(meta.lat) || isNaN(meta.lon)) {
-                            console.error("计算结果为 NaN，原始数据格式可能异常");
-                            alert("⚠️ 获取到 GPS 数据，但格式无法解析 (NaN)。请看控制台日志。");
-                            meta.lat = null;
-                            meta.lon = null;
-                        } else {
-                            console.log(`✅ 坐标解析成功: ${meta.lat}, ${meta.lon}`);
-                        }
-                    } else {
-                        console.log("无完整 GPS 数据");
-                    }
+            const start = new Date(date); start.setHours(0,0,0,0);
+            const end = new Date(date); end.setHours(23,59,59,999);
 
-                    // 2. 解析时间 (逻辑不变)
-                    let exifDate = EXIF.getTag(this, "DateTimeOriginal");
-                    if (exifDate) {
-                        let p = exifDate.split(/[: ]/);
-                        meta.date = `${p[0]}-${p[1]}-${p[2]}T${p[3]}:${p[4]}:${p[5]}+08:00`;
-                    } else {
-                        const d = new Date(file.lastModified);
-                        const pad = n => n.toString().padStart(2, '0');
-                        // 强制北京时间 +08:00
-                        const offset = 8 * 60; // 分钟
-                        const localOffset = d.getTimezoneOffset(); // 分钟
-                        const targetTime = d.getTime() + (offset + localOffset) * 60000;
-                        const bDate = new Date(targetTime);
-                        
-                        meta.date = `${bDate.getFullYear()}-${pad(bDate.getMonth()+1)}-${pad(bDate.getDate())}T${pad(bDate.getHours())}:${pad(bDate.getMinutes())}:${pad(bDate.getSeconds())}+08:00`;
-                    }
+            try {
+                const { data, error } = await db
+                    .from('nutrition_logs')
+                    .select('*')
+                    .gte('record_date', start.toISOString())
+                    .lte('record_date', end.toISOString())
+                    .order('record_date', { ascending: false });
 
-                    resolve(meta);
+                if (error) throw error;
+                renderList(data);
+            } catch (e) {
+                listEl.innerHTML = `<div class="empty-state">❌ 历史记录获取失败: ${e.message}</div>`;
+            }
+        }
+
+        function renderList(logs) {
+            const listEl = document.getElementById('listContainer');
+            const totalEl = document.getElementById('dayTotal');
+            
+            if (!logs || logs.length === 0) {
+                listEl.innerHTML = `
+                    <div class="empty-state">
+                        <div style="font-size:40px;margin-bottom:10px;">🍽️</div>
+                        今天还没有记录<br>点击底部按钮开始记录吧
+                    </div>`;
+                totalEl.innerText = '0';
+                return;
+            }
+
+            let html = '';
+            let totalCal = 0;
+
+            logs.forEach(log => {
+                totalCal += (log.calories || 0);
+                const d = new Date(log.record_date);
+                const timeStr = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                const imgUrl = log.image_url || null;
+                const imgTag = imgUrl 
+                    ? `<img src="${imgUrl}" class="meal-img" onclick="window.open('${imgUrl}')">` 
+                    : `<div class="meal-img" style="display:flex;align-items:center;justify-content:center;font-size:24px;background:#f2f2f7;">🥘</div>`;
+
+                html += `
+                    <div class="meal-card">
+                        ${imgTag}
+                        <div class="meal-content">
+                            <div class="meal-header">
+                                <span class="meal-name">${log.food_name}</span>
+                                <span class="meal-cal">${log.calories || 0}</span>
+                            </div>
+                            <div class="meal-tags">
+                                <span class="tag">碳水 ${log.carbs||0}</span>
+                                <span class="tag">蛋百 ${log.protein||0}</span>
+                                <span class="tag">脂肪 ${log.fat||0}</span>
+                            </div>
+                            <div style="margin-top:6px; font-size:12px; color:#aaa;">${timeStr}</div>
+                        </div>
+                    </div>
+                `;
+            });
+            listEl.innerHTML = html;
+            animateValue(totalEl, parseInt(totalEl.innerText), totalCal, 500);
+        }
+
+        function safeTrigger(type) {
+            if (!db) { alert("⚠️ 数据库连接中，请稍候..."); return; }
+            const input = document.getElementById('fileInput');
+            if (type === 'camera') input.setAttribute('capture', 'camera');
+            else input.removeAttribute('capture');
+            input.click();
+        }
+
+        document.getElementById('fileInput').onchange = async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            document.getElementById('upload-mask').style.display = 'flex';
+
+            try {
+                const base64 = await getBase64(file);
+                let recordDate = await getPhotoDate(file); 
+                if (!recordDate) recordDate = new Date().toISOString();
+
+                const res = await fetch(CONFIG.funcUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': CONFIG.key,
+                        'Authorization': 'Bearer ' + CONFIG.key
+                    },
+                    body: JSON.stringify({
+                        imageBase64: base64,
+                        record_date: recordDate
+                    })
                 });
+
+                const json = await res.json();
+                
+                if (json.success) {
+                    setTimeout(() => {
+                        loadData(currentDate);
+                        alert(`✅ 记录成功！\n热量: ${json.data.calories} kcal`);
+                    }, 500);
+                } else {
+                    alert('❌ 识别失败: ' + json.error);
+                }
+
+            } catch (err) {
+                alert('❌ 网络或系统错误: ' + err.message);
+            } finally {
+                document.getElementById('upload-mask').style.display = 'none';
+                this.value = '';
+            }
+        };
+
+        function animateValue(obj, start, end, duration) {
+            let startTimestamp = null;
+            const step = (timestamp) => {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                obj.innerHTML = Math.floor(progress * (end - start) + start);
+                if (progress < 1) window.requestAnimationFrame(step);
+            };
+            window.requestAnimationFrame(step);
+        }
+
+        function getBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
             });
         }
 
-        async function upload() {
-            if (!selectedFile) return;
-            
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('uploadBtn').disabled = true;
-
-            try {
-                const meta = await getPhotoMeta(selectedFile);
-                
-                const reader = new FileReader();
-                reader.readAsDataURL(selectedFile);
-                reader.onload = async () => {
-                    const base64Data = reader.result.split(',')[1];
-                    
-                    const response = await fetch('https://kliydumuddzylhmnnmyt.supabase.co/functions/v1/nutrition', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsaXlkdW11ZGR6eWxobW5ubXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1OTE5MzAsImV4cCI6MjA4MzE2NzkzMH0.jpO3hYrQ-UCfo3AiZKt3b8F9EBpWrybvbqjY9P-6FV4',
-                            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsaXlkdW11ZGR6eWxobW5ubXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1OTE5MzAsImV4cCI6MjA4MzE2NzkzMH0.jpO3hYrQ-UCfo3AiZKt3b8F9EBpWrybvbqjY9P-6FV4'
-                        },
-                        body: JSON.stringify({
-                            imageBase64: base64Data,
-                            record_date: meta.date,
-                            lat: meta.lat,
-                            lon: meta.lon
-                        })
-                    });
-
-                    const res = await response.json();
-                    if (res.success) showResult(res.data, meta);
-                    else alert('识别失败: ' + res.error);
-                };
-            } catch (e) {
-                console.error(e);
-                alert('网络错误');
-            } finally {
-               // loading logic
-            }
-        }
-
-        function updateRow(rowId, valId, value, unit) {
-            const row = document.getElementById(rowId);
-            const valSpan = document.getElementById(valId);
-            if (value !== undefined && value !== null && value !== 0) {
-                row.style.display = 'flex';
-                valSpan.innerText = value + ' ' + unit;
-            } else {
-                row.style.display = 'none';
-            }
-        }
-
-        function showResult(data, meta) {
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('uploadBtn').disabled = false;
-            
-            document.getElementById('result').style.display = 'block';
-            document.getElementById('foodName').innerText = data.food_name;
-            
-            const displayDate = new Date(meta.date);
-            document.getElementById('res_date').innerText = '时间: ' + displayDate.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
-            
-            // 优先显示后端查到的中文地名
-            if (data.location_name) {
-                document.getElementById('res_loc').innerText = `📍 地点: ${data.location_name}`;
-            } else if (meta.lat) {
-                document.getElementById('res_loc').innerText = `📍 坐标: ${meta.lat.toFixed(4)}, ${meta.lon.toFixed(4)}`;
-            } else {
-                document.getElementById('res_loc').innerText = "";
-            }
-
-            updateRow('row_cal', 'res_cal', data.calories, 'kcal');
-            updateRow('row_pro', 'res_pro', data.protein, 'g');
-            updateRow('row_car', 'res_car', data.carbs, 'g');
-            updateRow('row_fat', 'res_fat', data.fat, 'g');
-            updateRow('row_fib', 'res_fib', data.fiber, 'g');
-            updateRow('row_sug', 'res_sug', data.sugar, 'g');
-            updateRow('row_sat', 'res_sat', data.saturated_fat, 'g');
-            updateRow('row_sod', 'res_sod', data.sodium, 'g');
-            updateRow('row_caf', 'res_caf', data.caffeine, 'g');
-            updateRow('row_wat', 'res_wat', data.water, 'g');
+        function getPhotoDate(file) {
+            return new Promise((resolve) => {
+                if (typeof EXIF === 'undefined') { resolve(null); return; }
+                EXIF.getData(file, function() {
+                    const exifDate = EXIF.getTag(this, "DateTimeOriginal");
+                    if (exifDate) {
+                        const p = exifDate.split(/[: ]/);
+                        resolve(`${p[0]}-${p[1]}-${p[2]}T${p[3]}:${p[4]}:${p[5]}+08:00`);
+                    } else {
+                        const d = new Date(file.lastModified);
+                        const pad = n => n.toString().padStart(2, '0');
+                        const offset = 8 * 60; 
+                        const local = d.getTimezoneOffset();
+                        const target = new Date(d.getTime() + (offset + local) * 60000);
+                        resolve(`${target.getFullYear()}-${pad(target.getMonth()+1)}-${pad(target.getDate())}T${pad(target.getHours())}:${pad(target.getMinutes())}:${pad(target.getSeconds())}+08:00`);
+                    }
+                });
+            });
         }
     </script>
-
 </body>
 </html>
