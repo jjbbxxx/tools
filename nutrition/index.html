@@ -49,7 +49,7 @@
             min-height: 100vh;
         }
 
-        /* --- 修复版日历样式 --- */
+        /* --- 日历样式 --- */
         .flatpickr-calendar {
             background: rgba(255, 255, 255, 0.7) !important;
             backdrop-filter: blur(40px) saturate(220%) !important;
@@ -68,10 +68,8 @@
         .flatpickr-current-month { padding-top: 0 !important; height: 40px !important; display: flex !important; align-items: center !important; justify-content: center !important; font-family: "SF Pro Rounded", system-ui !important; }
         .flatpickr-current-month span.cur-month { font-weight: 800 !important; font-size: 18px !important; margin-right: 6px !important; }
         .flatpickr-current-month input.cur-year { font-weight: 800 !important; font-size: 18px !important; font-family: inherit !important; }
-
         .flatpickr-weekdays { height: 30px !important; margin-top: 5px !important; }
         span.flatpickr-weekday { color: var(--text-sub) !important; font-weight: 600 !important; font-size: 13px !important; }
-
         .flatpickr-days { width: 300px !important; padding: 0 !important; }
         .dayContainer { width: 300px !important; min-width: 300px !important; max-width: 300px !important; justify-content: space-around !important; }
         
@@ -91,7 +89,7 @@
             width: 4px; height: 4px; background: var(--primary); border-radius: 50%;
         }
 
-        /* --- 其他 UI --- */
+        /* --- UI 基础 --- */
         .header {
             position: sticky; top: 0; z-index: 90;
             display: flex; justify-content: space-between; align-items: center;
@@ -114,6 +112,8 @@
         .stat-val { font-size: 24px; font-weight: 800; color: var(--primary); font-family: "SF Pro Rounded", system-ui; text-shadow: 0 2px 10px rgba(10,132,255,0.2); }
         .stat-label { font-size: 10px; font-weight: 700; color: var(--text-sub); letter-spacing: 1px; }
         .container { padding: 24px 20px; max-width: 600px; margin: 0 auto; }
+        
+        /* 卡片 */
         .meal-card {
             background: rgba(255, 255, 255, 0.55);
             backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%);
@@ -122,9 +122,10 @@
             box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6);
             display: flex; flex-direction: column; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
-        .meal-card:active { transform: scale(0.97); }
         .meal-img-box { width: 100%; position: relative; }
         .meal-img { width: 100%; height: auto; display: block; mix-blend-mode: normal; }
+        
+        /* 时间徽章 (左上) */
         .img-time-badge { 
             position: absolute; top: 16px; left: 16px; 
             background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(20px) saturate(150%);
@@ -132,6 +133,23 @@
             padding: 6px 12px; border-radius: 100px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.5);
         }
+
+        /* 删除按钮 (右上) */
+        .delete-btn {
+            position: absolute; top: 16px; right: 16px;
+            background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(20px) saturate(150%);
+            color: #FF3B30; /* iOS 红色 */
+            width: 32px; height: 28px;
+            padding: 0;
+            border-radius: 100px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.5);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 10;
+            border: none;
+        }
+        .delete-btn svg { width: 16px; height: 16px; fill: currentColor; }
+        .delete-btn:active { background: rgba(255,255,255,0.9); transform: scale(0.9); }
+
         .meal-content { padding: 20px; }
         .meal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
         .meal-name { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
@@ -163,24 +181,14 @@
             display: flex; align-items: center; justify-content: center;
             transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); position: relative; overflow: hidden;
         }
-        
-        /* 【关键修改】添加 SVG 图标支持，颜色跟随文字颜色 (currentColor) */
-        .fab-btn svg {
-            width: 28px;
-            height: 28px;
-            fill: currentColor;
-        }
-
+        .fab-btn svg { width: 28px; height: 28px; fill: currentColor; }
         .fab-primary {
-            background: linear-gradient(135deg, #0A84FF 0%, #0056D2 100%); 
-            color: white; /* 这里定义了白色，SVG会自动变白 */
+            background: linear-gradient(135deg, #0A84FF 0%, #0056D2 100%); color: white;
             box-shadow: 0 10px 20px rgba(10, 132, 255, 0.4), inset 0 2px 0 rgba(255,255,255,0.4);
             border: 1px solid rgba(255,255,255,0.1);
         }
         .fab-secondary {
-            background: rgba(255, 255, 255, 0.4); 
-            color: #333; /* 这里定义了深色，SVG会自动变深 */
-            border: 1px solid rgba(255, 255, 255, 0.6);
+            background: rgba(255, 255, 255, 0.4); color: #333; border: 1px solid rgba(255, 255, 255, 0.6);
             box-shadow: inset 0 2px 10px rgba(255,255,255,0.8);
         }
         .fab-btn:active { transform: scale(0.9); }
@@ -189,6 +197,7 @@
         .loading-spinner { width: 30px; height: 30px; border: 3px solid rgba(0,0,0,0.1); border-top: 3px solid var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         #upload-mask { position: fixed; inset: 0; background: rgba(255,255,255,0.85); backdrop-filter: blur(20px); z-index: 300; display: none; flex-direction: column; align-items: center; justify-content: center; }
+        #mask-text { color:#666; font-size:15px; font-weight:500; }
     </style>
 </head>
 <body>
@@ -217,12 +226,12 @@
         </button>
     </div>
 
-    <input type="file" id="fileInput" accept="image/*" style="display:none">
+    <input type="file" id="fileInput" accept="image/*" style="display:none" multiple>
 
     <div id="upload-mask">
         <div class="loading-spinner" style="width:50px;height:50px;border-width:5px;"></div>
         <h3 style="margin:24px 0 8px; font-weight:700; color:#333;">AI 分析中</h3>
-        <p style="color:#666; font-size:15px; font-weight:500;">优化画质 · 识别营养成分</p>
+        <p id="mask-text">准备高清素材...</p>
     </div>
 
     <script>
@@ -240,6 +249,8 @@
         window.onload = async function() {
             if (window.supabase && window.supabase.createClient) {
                 db = window.supabase.createClient(CONFIG.url, CONFIG.key);
+                // 挂载删除函数到 window，确保全局可访问
+                window.deleteLog = deleteLog; 
                 initCalendar();
                 loadData(currentDate);
                 await fetchRecordedDates();
@@ -305,6 +316,21 @@
             return `https://wsrv.nl/?url=${encodeURIComponent(originalUrl)}&q=100&output=webp`;
         }
 
+        // --- 修复版删除功能 ---
+        async function deleteLog(id) {
+            // 这里的 event 是全局的，如果没传进来也没关系，但为了安全：
+            if (window.event) window.event.stopPropagation();
+
+            if (!confirm('确定要删除这条记录吗？')) return;
+            
+            const { error } = await db.from('nutrition_logs').delete().eq('id', id);
+            if (error) {
+                alert('删除失败: ' + error.message);
+            } else {
+                loadData(currentDate); // 刷新
+            }
+        }
+
         function renderList(logs) {
             const listEl = document.getElementById('listContainer');
             const totalEl = document.getElementById('dayTotal');
@@ -331,7 +357,22 @@
                 const opts = [{k:'fiber',l:'纤维'}, {k:'sugar',l:'糖'}, {k:'sodium',l:'钠'}, {k:'caffeine',l:'咖啡因'}];
                 opts.forEach(m => { if(log[m.k]>0) metricsHtml += `<div class="metric-item"><span class="m-val">${log[m.k]}</span><span class="m-label">${m.l}</span></div>`; });
 
-                html += `<div class="meal-card"><div class="meal-img-box">${imgContent}<div class="img-time-badge">${timeStr}</div></div><div class="meal-content"><div class="meal-header"><span class="meal-name">${log.food_name}</span><span class="meal-cal-badge">${log.calories||0} kcal</span></div><div class="metrics-grid">${metricsHtml}</div></div></div>`;
+                // 【核心修复】给 log.id 加上单引号 '${log.id}'
+                // 防止 UUID 字符串被当做变量或数学表达式处理导致报错
+                html += `
+                <div class="meal-card">
+                    <div class="meal-img-box">
+                        ${imgContent}
+                        <div class="img-time-badge">${timeStr}</div>
+                        <button class="delete-btn" onclick="deleteLog('${log.id}')">
+                            <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                        </button>
+                    </div>
+                    <div class="meal-content">
+                        <div class="meal-header"><span class="meal-name">${log.food_name}</span><span class="meal-cal-badge">${log.calories||0} kcal</span></div>
+                        <div class="metrics-grid">${metricsHtml}</div>
+                    </div>
+                </div>`;
             });
             listEl.innerHTML = html;
             totalEl.innerText = totalCal;
@@ -386,40 +427,55 @@
         function safeTrigger(type) {
             if (!db) { alert("数据库连接中..."); return; }
             const input = document.getElementById('fileInput');
-            if (type === 'camera') input.setAttribute('capture', 'camera');
-            else input.removeAttribute('capture');
+            if (type === 'camera') {
+                input.setAttribute('capture', 'camera');
+                input.removeAttribute('multiple');
+            } else {
+                input.removeAttribute('capture');
+                input.setAttribute('multiple', 'multiple');
+            }
             input.click();
         }
 
         document.getElementById('fileInput').onchange = async function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
+            const files = e.target.files;
+            if (!files || files.length === 0) return;
 
-            document.getElementById('upload-mask').style.display = 'flex';
+            const mask = document.getElementById('upload-mask');
+            const maskText = document.getElementById('mask-text');
+            mask.style.display = 'flex';
 
             try {
-                const base64 = await processHighQualityImage(file);
-                let recordDate = await getPhotoDate(file); 
-                if (!recordDate) recordDate = new Date().toISOString();
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    maskText.innerText = `正在处理第 ${i+1} / ${files.length} 张...`;
 
-                const res = await fetch(CONFIG.funcUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.key, 'Authorization': 'Bearer ' + CONFIG.key },
-                    body: JSON.stringify({ imageBase64: base64, record_date: recordDate })
-                });
+                    const base64 = await processHighQualityImage(file);
+                    let recordDate = await getPhotoDate(file); 
+                    if (!recordDate) recordDate = new Date().toISOString();
 
-                const json = await res.json();
-                if (json.success) {
-                    recordedDates.add(recordDate.split('T')[0]);
-                    if (calendarInstance) calendarInstance.redraw();
-                    setTimeout(() => { loadData(currentDate); alert(`✅ 记录成功！`); }, 500);
-                } else {
-                    alert('❌ 识别失败: ' + json.error);
+                    const res = await fetch(CONFIG.funcUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.key, 'Authorization': 'Bearer ' + CONFIG.key },
+                        body: JSON.stringify({ imageBase64: base64, record_date: recordDate })
+                    });
+
+                    const json = await res.json();
+                    if (json.success) {
+                        recordedDates.add(recordDate.split('T')[0]);
+                    } else {
+                        console.error('上传失败:', json.error);
+                    }
                 }
+
+                if (calendarInstance) calendarInstance.redraw();
+                loadData(currentDate); 
+                alert(`✅ 全部处理完成！`);
+
             } catch (err) {
                 alert('❌ 错误: ' + err.message);
             } finally {
-                document.getElementById('upload-mask').style.display = 'none';
+                mask.style.display = 'none';
                 this.value = '';
             }
         };
