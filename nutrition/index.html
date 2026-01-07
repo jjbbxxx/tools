@@ -1,21 +1,25 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>AI 饮食管家</title>
-    
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>香香饭记录小助手📝</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍚</text></svg>">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="https://lib.baomitu.com/exif-js/2.3.0/exif.min.js"></script>
     <link rel="stylesheet" href="https://lib.baomitu.com/flatpickr/4.6.13/flatpickr.min.css">
     <script src="https://lib.baomitu.com/flatpickr/4.6.13/flatpickr.min.js"></script>
-    
+    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
+
     <script>
         (function (global, factory) {
             typeof exports === 'object' && typeof module !== 'undefined' ? factory(global.flatpickr) :
-            typeof define === 'function' && define.amd ? define(['flatpickr'], factory) :
-            (factory(global.flatpickr));
-        }(this, (function (flatpickr) { 'use strict';
+                typeof define === 'function' && define.amd ? define(['flatpickr'], factory) :
+                    (factory(global.flatpickr));
+        }(this, (function (flatpickr) {
+            'use strict';
             var fp = flatpickr.l10ns;
             var zh = {
                 weekdays: { shorthand: ["周日", "周一", "周二", "周三", "周四", "周五", "周六"], longhand: ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"] },
@@ -24,144 +28,807 @@
             };
             fp.zh = zh; fp.default.l10n = zh;
         })));
+        // 工具：把 Date 对象转成 "YYYY-MM-DD" 字符串 (解决时区问题)
+        function toDateStr(dateObj) {
+            const year = dateObj.getFullYear();
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
     </script>
 
     <style>
-        :root { --primary: #0A84FF; --text-main: #000000; --text-sub: rgba(60, 60, 67, 0.6); }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        :root {
+            --primary: #0A84FF;
+            --text-main: #000000;
+            --text-sub: rgba(60, 60, 67, 0.6);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
         body {
             font-family: "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
-            margin: 0; padding-bottom: 140px; color: var(--text-main);
+            margin: 0;
+            padding-bottom: 140px;
+            color: var(--text-main);
             background: radial-gradient(circle at 0% 0%, rgba(200, 220, 255, 0.8), transparent 60%), radial-gradient(circle at 100% 0%, rgba(255, 220, 220, 0.6), transparent 50%), radial-gradient(circle at 50% 100%, rgba(220, 255, 240, 0.6), transparent 50%), #F2F2F7;
-            background-attachment: fixed; min-height: 100vh;
+            background-attachment: fixed;
+            min-height: 100vh;
         }
 
-        .header { position: sticky; top: 0; z-index: 90; display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; background: rgba(255, 255, 255, 0.3); backdrop-filter: blur(30px); border-bottom: 1px solid rgba(255, 255, 255, 0.3); }
-        .header-title { padding: 8px 16px; border-radius: 100px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 18px; font-weight: 700; background: rgba(255, 255, 255, 0.4); border: 1px solid rgba(255, 255, 255, 0.4); box-shadow: 0 4px 15px rgba(0,0,0,0.03), inset 0 1px 0 rgba(255,255,255,0.8); transition: all 0.2s; }
-        .header-title:active { transform: scale(0.96); background: rgba(255,255,255,0.6); }
-        .stat-capsule { display: flex; flex-direction: column; align-items: flex-end; }
-        .stat-val { font-size: 24px; font-weight: 800; color: var(--primary); font-family: "SF Pro Rounded", system-ui; text-shadow: 0 2px 10px rgba(10,132,255,0.2); }
-        .stat-label { font-size: 10px; font-weight: 700; color: var(--text-sub); letter-spacing: 1px; }
-        .container { padding: 24px 20px; max-width: 600px; margin: 0 auto; }
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 90;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            background: rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(30px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+        }
 
-        .meal-card { background: rgba(255, 255, 255, 0.55); backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%); border-radius: 28px; margin-bottom: 24px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.5); border-top: 1px solid rgba(255, 255, 255, 0.8); box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6); display: flex; flex-direction: column; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
-        .meal-img-box { width: 100%; position: relative; }
-        .meal-img { width: 100%; height: auto; display: block; mix-blend-mode: normal; }
-        .img-time-badge { position: absolute; top: 16px; left: 16px; background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(20px) saturate(150%); color: black; font-weight: 700; font-size: 12px; padding: 6px 12px; border-radius: 100px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.5); }
-        
-        .delete-btn { position: absolute; top: 16px; right: 16px; background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(20px) saturate(150%); color: #FF3B30; width: 32px; height: 28px; padding: 0; border-radius: 100px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.5); display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10; border: none; }
-        .delete-btn svg { width: 16px; height: 16px; fill: currentColor; }
-        .delete-btn:active { transform: scale(0.9); }
 
-        .meal-content { padding: 20px; }
-        
+        /* --- 头部布局 --- */
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            /* 按钮之间的间距，让它们彼此独立 */
+        }
+
+        /* --- iOS 26 液态玻璃按钮通用样式 --- */
+        .glass-btn {
+            border: none;
+            outline: none;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+
+            /* 核心材质：高透、高模糊 */
+            background: rgba(255, 255, 255, 0.65);
+            /* 比卡片稍微不透明一点，为了凸显层级 */
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+
+            /* 极细的混合边框，模拟玻璃边缘反光 */
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-top: 1px solid rgba(255, 255, 255, 0.8);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+
+            /* 柔和的投影 */
+            box-shadow: 0 8px 20px -5px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
+            transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 按下时的质感反馈：变暗、缩小 */
+        .glass-btn:active {
+            transform: scale(0.92);
+            background: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 2px 10px -2px rgba(0, 0, 0, 0.1);
+        }
+
+        /* 圆形图标按钮 (< 和 >) */
+        .icon-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            /* 正圆 */
+            padding: 0;
+        }
+
+        .icon-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+            opacity: 0.7;
+        }
+
+        /* 长条日期按钮 */
+        .date-btn {
+            height: 40px;
+            padding: 0 16px;
+            border-radius: 20px;
+            /* 胶囊形 */
+            font-size: 17px;
+            font-weight: 700;
+            font-family: "SF Pro Rounded", system-ui;
+        }
+
+        /* 禁用状态 (比如明天) */
+        .glass-btn.disabled {
+            opacity: 0.4;
+            pointer-events: none;
+            background: rgba(255, 255, 255, 0.3);
+            box-shadow: none;
+        }
+
+
+
+
+
+        .stat-capsule {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .stat-val {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--primary);
+            font-family: "SF Pro Rounded", system-ui;
+            text-shadow: 0 2px 10px rgba(10, 132, 255, 0.2);
+        }
+
+        .stat-label {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--text-sub);
+            letter-spacing: 1px;
+        }
+
+        .container {
+            padding: 24px 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .meal-card {
+            background: rgba(255, 255, 255, 0.55);
+            backdrop-filter: blur(40px) saturate(180%);
+            -webkit-backdrop-filter: blur(40px) saturate(180%);
+            border-radius: 28px;
+            margin-bottom: 24px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-top: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .meal-img-box {
+            width: 100%;
+            position: relative;
+        }
+
+        .meal-img {
+            width: 100%;
+            height: auto;
+            display: block;
+            mix-blend-mode: normal;
+        }
+
+        .img-time-badge {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px) saturate(150%);
+            color: black;
+            font-weight: 700;
+            font-size: 12px;
+            padding: 6px 12px;
+            border-radius: 100px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .delete-btn {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px) saturate(150%);
+            color: #FF3B30;
+            width: 32px;
+            height: 28px;
+            padding: 0;
+            border-radius: 100px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 10;
+            border: none;
+        }
+
+        .delete-btn svg {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+        }
+
+        .delete-btn:active {
+            transform: scale(0.9);
+        }
+
+        .meal-content {
+            padding: 20px;
+        }
+
         /* --- 核心修改：头部编辑区 --- */
-        .meal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; min-height: 32px; }
-        .header-left { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
-        
+        .meal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            min-height: 32px;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            min-width: 0;
+        }
+
         /* Emoji 展示 */
-        .emoji-display { font-size: 24px; cursor: pointer; transition: transform 0.2s; user-select: none; }
-        .emoji-display:active { transform: scale(0.8); }
-        
+        .emoji-display {
+            font-size: 24px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            user-select: none;
+        }
+
+        .emoji-display:active {
+            transform: scale(0.8);
+        }
+
         /* 名字展示与编辑 */
-        .name-container { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; }
-        .meal-name { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        
-        /* 编辑图标 (铅笔) */
-        .edit-icon { opacity: 0.3; cursor: pointer; display: flex; flex-shrink: 0; transition: 0.2s; }
-        .edit-icon:hover { opacity: 0.8; }
-        .edit-icon svg { width: 16px; height: 16px; fill: var(--text-main); }
+        .name-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 0;
+        }
 
-        /* 名字输入框 (隐藏态) */
-        .name-input { 
-            display: none; width: 100%; font-size: 18px; padding: 4px 8px; 
-            border: 1px solid rgba(0,0,0,0.1); border-radius: 8px; 
-            background: rgba(255,255,255,0.5); outline: none; font-weight: 600;
+        /* 1. 显示态：最多3行，超出省略 */
+        .meal-name {
+            font-size: 20px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            line-height: 1.4;
+            /* 设置清晰的行高 */
+
+            white-space: pre-wrap;
+            /* 保留换行符，且允许自动换行 */
+            word-break: break-all;
+            /* 防止长单词撑破布局 */
+
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            /* 改为 3 行 */
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+
+            min-height: 28px;
+            /* 给个最小高度防止太扁 */
+        }
+
+        /* 2. 编辑态：多行文本域，样式对齐 */
+        .name-input {
+            display: none;
+            width: 100%;
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1.4;
+            /* 必须和上面保持一致 */
+            letter-spacing: -0.5px;
+
+            padding: 4px 8px;
+            /* 给点内边距 */
+            margin: -4px -8px;
+            /* 负外边距抵消内边距，为了位置视觉重合 */
+
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.8);
+            outline: none;
             font-family: inherit;
+            color: var(--text-main);
+
+            resize: none;
+            /* 禁止手动拖拽大小 */
+            overflow: hidden;
+            /* 隐藏滚动条，完全靠JS撑高 */
+            box-sizing: content-box;
+            /* 让高度计算更准 */
         }
-        
+
+        /* 编辑图标 (铅笔) */
+        .edit-icon {
+            opacity: 0.3;
+            cursor: pointer;
+            display: flex;
+            flex-shrink: 0;
+            transition: 0.2s;
+        }
+
+        .edit-icon:hover {
+            opacity: 0.8;
+        }
+
+        .edit-icon svg {
+            width: 16px;
+            height: 16px;
+            fill: var(--text-main);
+        }
+
+
+
         /* 保存/取消按钮组 */
-        .edit-actions { display: none; gap: 6px; flex-shrink: 0; }
-        .action-btn { 
-            width: 28px; height: 28px; border-radius: 8px; border: none; 
-            display: flex; align-items: center; justify-content: center; cursor: pointer; 
+        .edit-actions {
+            display: none;
+            gap: 6px;
+            flex-shrink: 0;
         }
-        .btn-save { background: var(--primary); color: white; }
-        .btn-cancel { background: rgba(0,0,0,0.1); color: #333; }
-        .action-btn svg { width: 14px; height: 14px; fill: currentColor; }
 
-        .meal-cal-badge { flex-shrink: 0; font-family: "SF Pro Rounded", system-ui; background: rgba(10, 132, 255, 0.1); color: var(--primary); font-weight: 800; font-size: 16px; padding: 6px 12px; border-radius: 12px; }
-        
-        .metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: rgba(255,255,255,0.3); border-radius: 20px; padding: 16px; box-shadow: inset 0 2px 5px rgba(0,0,0,0.03); }
-        .metric-item { display: flex; flex-direction: column; align-items: center; }
-        .m-val { font-size: 16px; font-weight: 700; color: #111; }
-        .m-label { font-size: 10px; color: #888; font-weight: 600; margin-top: 2px; }
+        .action-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
 
-        .fab-bar { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; gap: 24px; background: rgba(255, 255, 255, 0.35); backdrop-filter: blur(40px) saturate(200%); -webkit-backdrop-filter: blur(40px) saturate(200%); padding: 10px 14px; border-radius: 50px; border: 1px solid rgba(255, 255, 255, 0.5); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(255, 255, 255, 0.3); }
-        .fab-btn { width: 64px; height: 64px; border-radius: 32px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); position: relative; overflow: hidden; }
-        .fab-btn svg { width: 28px; height: 28px; fill: currentColor; }
-        .fab-primary { background: linear-gradient(135deg, #0A84FF 0%, #0056D2 100%); color: white; box-shadow: 0 10px 20px rgba(10, 132, 255, 0.4), inset 0 2px 0 rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.1); }
-        .fab-secondary { background: rgba(255, 255, 255, 0.4); color: #333; border: 1px solid rgba(255, 255, 255, 0.6); box-shadow: inset 0 2px 10px rgba(255,255,255,0.8); }
-        .fab-btn:active { transform: scale(0.9); }
+        .btn-save {
+            background: var(--primary);
+            color: white;
+        }
 
-        .empty-state { text-align: center; padding: 60px 20px; color: var(--text-sub); opacity: 0.7; }
-        .loading-spinner { width: 30px; height: 30px; border: 3px solid rgba(0,0,0,0.1); border-top: 3px solid var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #upload-mask { position: fixed; inset: 0; background: rgba(255,255,255,0.85); backdrop-filter: blur(20px); z-index: 300; display: none; flex-direction: column; align-items: center; justify-content: center; }
-        #mask-text { color:#666; font-size:15px; font-weight:500; }
+        .btn-cancel {
+            background: rgba(0, 0, 0, 0.1);
+            color: #333;
+        }
 
-        .flatpickr-calendar { background: rgba(255, 255, 255, 0.7) !important; backdrop-filter: blur(40px) saturate(220%) !important; -webkit-backdrop-filter: blur(40px) saturate(220%) !important; border: 1px solid rgba(255, 255, 255, 0.6) !important; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important; border-radius: 24px !important; width: 320px !important; padding: 10px !important; margin-top: 20px; }
-        .flatpickr-calendar::before, .flatpickr-calendar::after { display: none !important; }
-        .flatpickr-months { padding-top: 5px !important; padding-bottom: 5px !important; align-items: center !important; }
-        .flatpickr-month { height: 40px !important; color: var(--text-main) !important; fill: var(--text-main) !important; }
-        .flatpickr-current-month { padding-top: 0 !important; height: 40px !important; display: flex !important; align-items: center !important; justify-content: center !important; font-family: "SF Pro Rounded", system-ui !important; }
-        .flatpickr-current-month span.cur-month { font-weight: 800 !important; font-size: 18px !important; margin-right: 6px !important; }
-        .flatpickr-current-month input.cur-year { font-weight: 800 !important; font-size: 18px !important; font-family: inherit !important; }
-        .flatpickr-weekdays { height: 30px !important; margin-top: 5px !important; }
-        span.flatpickr-weekday { color: var(--text-sub) !important; font-weight: 600 !important; font-size: 13px !important; }
-        .flatpickr-days { width: 300px !important; padding: 0 !important; }
-        .dayContainer { width: 300px !important; min-width: 300px !important; max-width: 300px !important; justify-content: space-around !important; }
-        .flatpickr-day { max-width: 38px !important; height: 38px !important; line-height: 38px !important; margin: 2px 0 !important; border-radius: 10px !important; color: var(--text-main) !important; font-weight: 500 !important; font-family: "SF Pro Rounded", system-ui !important; font-size: 16px !important; }
-        .flatpickr-day.selected { background: var(--primary) !important; border: none !important; box-shadow: 0 4px 10px rgba(10, 132, 255, 0.4) !important; color: white !important; font-weight: 700 !important; }
-        .flatpickr-day.has-record::after { content: ''; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; background: var(--primary); border-radius: 50%; }
+        .action-btn svg {
+            width: 14px;
+            height: 14px;
+            fill: currentColor;
+        }
 
-        /* --- Emoji Picker (仿日历样式) --- */
-        #emoji-modal { position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.1); backdrop-filter: blur(2px); display: none; align-items: center; justify-content: center; }
+        .meal-cal-badge {
+            flex-shrink: 0;
+            font-family: "SF Pro Rounded", system-ui;
+            background: rgba(10, 132, 255, 0.1);
+            color: var(--primary);
+            font-weight: 800;
+            font-size: 16px;
+            padding: 6px 12px;
+            border-radius: 12px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            padding: 16px;
+            box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.03);
+        }
+
+        .metric-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .m-val {
+            font-size: 16px;
+            font-weight: 700;
+            color: #111;
+        }
+
+        .m-label {
+            font-size: 10px;
+            color: #888;
+            font-weight: 600;
+            margin-top: 2px;
+        }
+
+        .fab-bar {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 200;
+            display: flex;
+            gap: 24px;
+            background: rgba(255, 255, 255, 0.35);
+            backdrop-filter: blur(40px) saturate(200%);
+            -webkit-backdrop-filter: blur(40px) saturate(200%);
+            padding: 10px 14px;
+            border-radius: 50px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(255, 255, 255, 0.3);
+        }
+
+        .fab-btn {
+            width: 64px;
+            height: 64px;
+            border-radius: 32px;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .fab-btn svg {
+            width: 28px;
+            height: 28px;
+            fill: currentColor;
+        }
+
+        .fab-primary {
+            background: linear-gradient(135deg, #0A84FF 0%, #0056D2 100%);
+            color: white;
+            box-shadow: 0 10px 20px rgba(10, 132, 255, 0.4), inset 0 2px 0 rgba(255, 255, 255, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .fab-secondary {
+            background: rgba(255, 255, 255, 0.4);
+            color: #333;
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: inset 0 2px 10px rgba(255, 255, 255, 0.8);
+        }
+
+        .fab-btn:active {
+            transform: scale(0.9);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-sub);
+            opacity: 0.7;
+        }
+
+        .loading-spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(0, 0, 0, 0.1);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        #upload-mask {
+            position: fixed;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            z-index: 300;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #mask-text {
+            color: #666;
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        .flatpickr-calendar {
+            background: rgba(255, 255, 255, 0.7) !important;
+            backdrop-filter: blur(40px) saturate(220%) !important;
+            -webkit-backdrop-filter: blur(40px) saturate(220%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.6) !important;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+            border-radius: 24px !important;
+            width: 320px !important;
+            padding: 10px !important;
+            margin-top: 20px;
+        }
+
+        .flatpickr-calendar::before,
+        .flatpickr-calendar::after {
+            display: none !important;
+        }
+
+        .flatpickr-months {
+            padding-top: 5px !important;
+            padding-bottom: 5px !important;
+            align-items: center !important;
+        }
+
+        .flatpickr-month {
+            height: 40px !important;
+            color: var(--text-main) !important;
+            fill: var(--text-main) !important;
+        }
+
+        .flatpickr-current-month {
+            padding-top: 0 !important;
+            height: 40px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-family: "SF Pro Rounded", system-ui !important;
+        }
+
+        .flatpickr-current-month span.cur-month {
+            font-weight: 800 !important;
+            font-size: 18px !important;
+            margin-right: 6px !important;
+        }
+
+        .flatpickr-current-month input.cur-year {
+            font-weight: 800 !important;
+            font-size: 18px !important;
+            font-family: inherit !important;
+        }
+
+        .flatpickr-weekdays {
+            height: 30px !important;
+            margin-top: 5px !important;
+        }
+
+        span.flatpickr-weekday {
+            color: var(--text-sub) !important;
+            font-weight: 600 !important;
+            font-size: 13px !important;
+        }
+
+        .flatpickr-days {
+            width: 300px !important;
+            padding: 0 !important;
+        }
+
+        .dayContainer {
+            width: 300px !important;
+            min-width: 300px !important;
+            max-width: 300px !important;
+            justify-content: space-around !important;
+        }
+
+        .flatpickr-day {
+            max-width: 38px !important;
+            height: 38px !important;
+            line-height: 38px !important;
+            margin: 2px 0 !important;
+            border-radius: 10px !important;
+            color: var(--text-main) !important;
+            font-weight: 500 !important;
+            font-family: "SF Pro Rounded", system-ui !important;
+            font-size: 16px !important;
+        }
+
+        .flatpickr-day.selected {
+            background: var(--primary) !important;
+            border: none !important;
+            box-shadow: 0 4px 10px rgba(10, 132, 255, 0.4) !important;
+            color: white !important;
+            font-weight: 700 !important;
+        }
+
+        .flatpickr-day.has-record::after {
+            content: '';
+            position: absolute;
+            bottom: 3px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 4px;
+            background: var(--primary);
+            border-radius: 50%;
+        }
+
+        /* --- Emoji Picker (全功能玻璃态 - 最终优化版) --- */
+        #emoji-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 500;
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
         .emoji-grid-card {
-            width: 320px; background: rgba(255,255,255,0.85); backdrop-filter: blur(40px) saturate(200%); -webkit-backdrop-filter: blur(40px) saturate(200%);
-            border-radius: 24px; padding: 20px; border: 1px solid rgba(255,255,255,0.6);
-            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+            width: 350px;
+            height: 480px;
+            /* 液态玻璃主体 */
+            background: rgba(255, 255, 255, 0.55);
+            backdrop-filter: blur(40px) saturate(180%);
+            -webkit-backdrop-filter: blur(40px) saturate(180%);
+            border-radius: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-top: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
-        .emoji-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; max-height: 300px; overflow-y: auto; padding-top: 10px; }
-        .emoji-item { font-size: 28px; text-align: center; cursor: pointer; padding: 6px; border-radius: 10px; transition: 0.1s; user-select: none; }
-        .emoji-item:active { background: rgba(0,0,0,0.1); transform: scale(0.9); }
-        .emoji-header { display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: 800; font-size: 18px; color: #333; padding: 0 5px; align-items: center; }
-        .close-emoji { cursor: pointer; color: rgba(60,60,67,0.6); background: rgba(0,0,0,0.05); width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+
+        .emoji-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 800;
+            font-size: 20px;
+            /* 修改点：标题改为白色，并增加轻微阴影以防背景太亮看不清 */
+            color: rgb(30, 30, 30);
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 16px 20px 10px;
+            flex-shrink: 0;
+        }
+
+        .close-emoji {
+            cursor: pointer;
+            color: var(--text-sub);
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: all 0.2s;
+            background: rgba(255, 255, 255, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(5px);
+        }
+
+        .close-emoji:hover {
+            background: rgba(255, 255, 255, 0.5);
+            border-color: rgba(255, 255, 255, 0.6);
+        }
+
+        .close-emoji:active {
+            transform: scale(0.9);
+        }
+
+        emoji-picker {
+            width: 100%;
+            flex: 1;
+            --background: transparent;
+            font-family: "SF Pro Rounded", system-ui;
+            --indicator-color: var(--primary);
+            outline: none;
+            --border-color: transparent;
+
+            /* 搜索框样式 */
+            --input-border-radius: 14px;
+            --input-background-color: rgba(255, 255, 255, 0.4);
+            --input-border-color: transparent;
+            --input-padding: 10px;
+            --input-font-size: 16px;
+            --input-placeholder-color: var(--text-sub);
+            /* 搜索提示文字颜色 */
+            --input-font-color: #000;
+            /* 输入文字颜色 */
+
+            /* 修改点：给肤色选择弹窗加一个半透明白底，解决重叠问题 */
+            --skin-tone-picker-menu-background-color: rgba(255, 255, 255, 0.95);
+
+            --padding: 0 16px 16px;
+            --scrollbar-width: 4px;
+            --scrollbar-thumb-color: rgba(0, 0, 0, 0.1);
+        }
+
+        emoji-picker::part(picker) {
+            --border-radius: 0 0 28px 28px;
+        }
+
+        /* --- 日历逻辑修改 (粘贴到 style 标签最下面) --- */
+
+        /* 1. 彻底隐藏相邻月份的日期 (上月/下月凑数的) */
+        .flatpickr-day.prevMonthDay,
+        .flatpickr-day.nextMonthDay {
+            visibility: hidden !important;
+            /* 隐身但占位，保持排版 */
+            pointer-events: none !important;
+        }
+
+        /* 2. 禁用的日期 (未来 + 无记录) -> 变成明显的浅灰色 */
+        .flatpickr-day.flatpickr-disabled {
+            color: #d1d1d6 !important;
+            /* iOS 风格的不可用灰 */
+            background: transparent !important;
+            border: none !important;
+            cursor: default !important;
+        }
+
+        /* 去掉禁用日期的悬停效果 */
+        .flatpickr-day.flatpickr-disabled:hover {
+            background: transparent !important;
+            color: #d1d1d6 !important;
+        }
     </style>
+
 </head>
+
 <body>
 
     <div class="header">
-        <div class="header-title" id="datePickerBtn">
-            <span id="headerDateStr">今天</span>
-            <small>▼</small>
+        <div class="header-controls">
+            <button class="glass-btn icon-btn" onclick="window.changeDay(-1)">
+                <svg viewBox="0 0 24 24">
+                    <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" />
+                </svg>
+            </button>
+
+            <button class="glass-btn date-btn" id="datePickerBtn">
+                <span id="headerDateStr">今天</span>
+                <small style="opacity:0.5; font-size:10px; margin-left:2px;">▼</small>
+            </button>
+
+            <button class="glass-btn icon-btn" id="nextDayBtn" onclick="window.changeDay(1)">
+                <svg viewBox="0 0 24 24">
+                    <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z" />
+                </svg>
+            </button>
         </div>
+
         <div class="stat-capsule">
             <div class="stat-val" id="dayTotal">0</div>
             <div class="stat-label">KCAL</div>
         </div>
     </div>
 
+    
+
     <div class="container" id="listContainer">
-        <div class="empty-state"><div class="loading-spinner"></div></div>
+        <div class="empty-state">
+            <div class="loading-spinner"></div>
+        </div>
     </div>
 
     <div class="fab-bar">
         <button class="fab-btn fab-secondary" onclick="safeTrigger('album')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="none"/><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M0 0h24v24H0z" fill="none" />
+                <path
+                    d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
+            </svg>
         </button>
         <button class="fab-btn fab-primary" onclick="safeTrigger('camera')">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="3.2"/><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M0 0h24v24H0z" fill="none" />
+                <circle cx="12" cy="12" r="3.2" />
+                <path
+                    d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z" />
+            </svg>
         </button>
     </div>
 
@@ -179,7 +846,8 @@
                 <span>选择图标</span>
                 <span class="close-emoji" onclick="closeEmojiPicker()">✕</span>
             </div>
-            <div class="emoji-grid" id="emoji-grid-container"></div>
+            <emoji-picker locale="zh"
+                data-source="https://cdn.jsdelivr.net/npm/emoji-picker-element-data@^1/zh/cldr/data.json"></emoji-picker>
         </div>
     </div>
 
@@ -190,13 +858,11 @@
             funcUrl: 'https://kliydumuddzylhmnnmyt.supabase.co/functions/v1/nutrition'
         };
 
-        const FOOD_EMOJIS = [
-            "🍚","🍜","🍝","🍞","🥪","🍔","🍟","🍕","🌭","🥙","🌮","🌯","🥗","🥘","🍲","🥣",
-            "🍛","🍣","🍱","🍤","🍙","🍘","🥟","🍡","🍢","🍣","🧁","🍰","🎂","🍮","🍭","🍬",
-            "🍫","🍿","🍩","🍪","🌰","🥜","🥤","☕️","🍵","🥛","🍺","🍷","🍹","🍎","🍌","🍇",
-            "🍓","🍒","🍑","🥭","🍍","🥥","🥝","🍅","🍆","🥑","🥦","🥒","🌽","🥕","🥔","🥯",
-            "🥩","🍗","🍖","🍳","🥞","🧇","🥓","🦴","🥫","🧂","🧈"
-        ];
+
+
+        // ... 前面的 CONFIG 和变量保持不变 ...
+
+        // 注意：FOOD_EMOJIS 数组可以删掉了，因为我们现在拥有所有 Emoji
 
         let db = null;
         let currentDate = new Date();
@@ -204,18 +870,31 @@
         let recordedDates = new Set();
         let currentEditingEmojiId = null;
 
-        window.onload = async function() {
+        window.onload = async function () {
             if (window.supabase && window.supabase.createClient) {
                 db = window.supabase.createClient(CONFIG.url, CONFIG.key);
+
+                // 绑定全局函数
                 window.deleteLog = deleteLog;
                 window.openEmojiPicker = openEmojiPicker;
                 window.closeEmojiPicker = closeEmojiPicker;
                 window.toggleNameEdit = toggleNameEdit;
                 window.saveNameEdit = saveNameEdit;
                 window.cancelNameEdit = cancelNameEdit;
-                window.selectEmoji = selectEmoji;
-                
-                initEmojiGrid();
+                // window.selectEmoji = selectEmoji; // 这一行不需要显式绑定了，下面会用监听器
+
+                // --- 新增：绑定 Emoji 组件的点击事件 ---
+                const picker = document.querySelector('emoji-picker');
+                if (picker) {
+                    // 监听 emoji-click 事件
+                    picker.addEventListener('emoji-click', event => {
+                        // event.detail.unicode 就是选中的 emoji 字符
+                        selectEmoji(event.detail.unicode);
+                    });
+                }
+
+                // initEmojiGrid(); // <--- 删掉这一行，不需要手动生成网格了
+
                 initCalendar();
                 loadData(currentDate);
                 await fetchRecordedDates();
@@ -225,14 +904,8 @@
             }
         };
 
-        function initEmojiGrid() {
-            const grid = document.getElementById('emoji-grid-container');
-            let html = '';
-            FOOD_EMOJIS.forEach(e => {
-                html += `<div class="emoji-item" onclick="selectEmoji('${e}')">${e}</div>`;
-            });
-            grid.innerHTML = html;
-        }
+        // ... openEmojiPicker 和 closeEmojiPicker 保持不变 ...
+        // ... selectEmoji (刚才修复过带 ID 备份的那个版本) 保持不变 ...
 
         function openEmojiPicker(id) {
             currentEditingEmojiId = id;
@@ -248,14 +921,14 @@
         async function selectEmoji(emoji) {
             // 1. 【关键】先把 ID 存个备份！
             // 因为下面调用 closeEmojiPicker 会把全局变量清空，导致后面数据库更新找不到 ID
-            const targetId = currentEditingEmojiId; 
-            
+            const targetId = currentEditingEmojiId;
+
             if (!targetId) return;
-            
+
             // 获取 DOM 元素
             const nameEl = document.getElementById(`name-display-${targetId}`);
             const emojiEl = document.getElementById(`emoji-display-${targetId}`);
-            
+
             // 如果列表已刷新或元素不存在，直接返回
             if (!nameEl || !emojiEl) {
                 closeEmojiPicker();
@@ -275,29 +948,43 @@
             // 【关键】这里必须用 targetId，而不能用 currentEditingEmojiId
             const { error } = await db.from('nutrition_logs')
                 .update({ food_name: newFullName })
-                .eq('id', targetId); 
-            
+                .eq('id', targetId);
+
             if (error) console.error("Update emoji failed:", error);
         }
-        
-        // --- 核心逻辑：名字行内编辑 ---
+
+        // --- 核心逻辑：名字行内编辑 (支持多行高度自适应) ---
         function toggleNameEdit(id) {
             const displayEl = document.getElementById(`name-display-${id}`);
             const inputEl = document.getElementById(`name-input-${id}`);
             const editIcon = document.getElementById(`edit-icon-${id}`);
             const actions = document.getElementById(`edit-actions-${id}`);
 
-            // 防空判断
-            if(!displayEl || !inputEl) return;
+            if (!displayEl || !inputEl) return;
 
             displayEl.style.display = 'none';
-            if(editIcon) editIcon.style.display = 'none';
-            
+            if (editIcon) editIcon.style.display = 'none';
+
             inputEl.style.display = 'block';
-            inputEl.value = displayEl.innerText;
+            inputEl.value = displayEl.innerText; // 把字填进去
+
+            // --- 新增：自动调整高度的核心魔法 ---
+            const autoResize = (el) => {
+                el.style.height = 'auto'; // 先重置高度
+                el.style.height = el.scrollHeight + 'px'; // 再设为内容高度
+            };
+
+            // 1. 初始化时调整一次
+            autoResize(inputEl);
+
+            // 2. 每次输入时调整
+            inputEl.oninput = function () {
+                autoResize(this);
+            };
+
             inputEl.focus();
-            
-            if(actions) actions.style.display = 'flex';
+
+            if (actions) actions.style.display = 'flex';
         }
 
         function cancelNameEdit(id) {
@@ -306,10 +993,10 @@
             const editIcon = document.getElementById(`edit-icon-${id}`);
             const actions = document.getElementById(`edit-actions-${id}`);
 
-            if(displayEl) displayEl.style.display = 'block';
-            if(editIcon) editIcon.style.display = 'flex';
-            if(inputEl) inputEl.style.display = 'none';
-            if(actions) actions.style.display = 'none';
+            if (displayEl) displayEl.style.display = 'block';
+            if (editIcon) editIcon.style.display = 'flex';
+            if (inputEl) inputEl.style.display = 'none';
+            if (actions) actions.style.display = 'none';
         }
 
         // --- 核心逻辑：修改名字触发重算 ---
@@ -337,21 +1024,21 @@
                 const res = await fetch(CONFIG.funcUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'apikey': CONFIG.key, 'Authorization': 'Bearer ' + CONFIG.key },
-                    body: JSON.stringify({ 
-                        mode: 'text_analysis', 
-                        food_name: newFullName, 
+                    body: JSON.stringify({
+                        mode: 'text_analysis',
+                        food_name: newFullName,
                         id: id
                     })
                 });
                 const json = await res.json();
-                
+
                 if (json.success) {
                     const { error } = await db.from('nutrition_logs')
-                        .update(json.data) 
+                        .update(json.data)
                         .eq('id', id);
-                    
+
                     if (error) throw error;
-                    loadData(currentDate); 
+                    loadData(currentDate);
                 } else {
                     alert("重算失败: " + json.error);
                 }
@@ -362,23 +1049,50 @@
             }
         }
 
+        // --- 新增函数：专门用来告诉日历“哪些日子能点” ---
+        function updateCalendarConfig() {
+            if (!calendarInstance) return;
+
+            // 把 Set 转成数组，告诉 flatpickr：“只允许这些日期被点击”
+            // 注意：enable 属性不仅开启这些日期，还会自动禁用除此之外的所有日期
+            const allowedDates = Array.from(recordedDates);
+
+            if (allowedDates.length > 0) {
+                calendarInstance.set('enable', allowedDates);
+            } else {
+                // 如果一条记录都没有，就全禁
+                calendarInstance.set('enable', []);
+            }
+
+            // 双重保险：最大日期只能是今天（防止时区问题导致显示未来）
+            calendarInstance.set('maxDate', 'today');
+        }
+
+        // --- 修改后的获取日期函数 ---
         async function fetchRecordedDates() {
             if (!db) return;
             const { data } = await db.from('nutrition_logs').select('record_date');
             if (data) {
+                recordedDates.clear();
                 data.forEach(item => { if (item.record_date) recordedDates.add(item.record_date.split('T')[0]); });
+
+                // --- 核心修改：获取完数据后，立刻锁住日历 ---
+                updateCalendarConfig(); // 更新可点击规则
+                calendarInstance.redraw(); // 重绘（让红点和灰色生效）
+                // --- 新增这一行：数据拉取完，立刻刷新一下按钮的灰色状态 ---
+                updateHeaderDate();
             }
         }
 
         function initCalendar() {
             calendarInstance = flatpickr("#datePickerBtn", {
                 defaultDate: "today", locale: "zh", disableMobile: true,
-                onDayCreate: function(dObj, dStr, fp, dayElem) {
+                onDayCreate: function (dObj, dStr, fp, dayElem) {
                     const d = dayElem.dateObj;
-                    const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                    const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
                     if (recordedDates.has(ds)) dayElem.classList.add('has-record');
                 },
-                onChange: function(selectedDates) {
+                onChange: function (selectedDates) {
                     currentDate = selectedDates[0];
                     updateHeaderDate();
                     loadData(currentDate);
@@ -390,15 +1104,15 @@
         function updateHeaderDate() {
             const today = new Date();
             const isToday = currentDate.toDateString() === today.toDateString();
-            document.getElementById('headerDateStr').innerText = isToday ? "今天" : `${currentDate.getMonth()+1}月${currentDate.getDate()}日`;
+            document.getElementById('headerDateStr').innerText = isToday ? "今天" : `${currentDate.getMonth() + 1}月${currentDate.getDate()}日`;
         }
 
         async function loadData(date) {
             if (!db) return;
             const listEl = document.getElementById('listContainer');
             listEl.innerHTML = '<div class="empty-state"><div class="loading-spinner"></div></div>';
-            const start = new Date(date); start.setHours(0,0,0,0);
-            const end = new Date(date); end.setHours(23,59,59,999);
+            const start = new Date(date); start.setHours(0, 0, 0, 0);
+            const end = new Date(date); end.setHours(23, 59, 59, 999);
 
             try {
                 const { data, error } = await db.from('nutrition_logs').select('*')
@@ -413,7 +1127,11 @@
 
         function getProxyUrl(originalUrl) {
             if (!originalUrl) return null;
-            return `https://wsrv.nl/?url=${encodeURIComponent(originalUrl)}&q=100&output=webp`;
+
+            // 关键修改：
+            // 1. w=400: 把几千像素的原图缩小到 400 像素，体积减少 90%
+            // 2. q=75:  降低一点点质量，体积再减半
+            return `https://wsrv.nl/?url=${encodeURIComponent(originalUrl)}&q=80&output=webp`;
         }
 
         async function deleteLog(id) {
@@ -438,14 +1156,14 @@
                 const d = new Date(log.record_date);
                 const timeStr = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
                 const displayUrl = getProxyUrl(log.image_url);
-                const imgContent = displayUrl 
-                    ? `<img src="${displayUrl}" class="meal-img" onclick="window.open('${displayUrl}')" loading="lazy">` 
+                const imgContent = displayUrl
+                    ? `<img src="${displayUrl}" class="meal-img" onclick="window.open('${displayUrl}')" loading="lazy">`
                     : `<div style="width:100%;height:200px;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:40px;">🥘</div>`;
 
                 let fullString = log.food_name || "🍽️ 未知食物";
                 let emoji = "🍽️";
                 let name = fullString;
-                
+
                 const match = fullString.match(/^(\p{Emoji_Presentation}|\p{Extended_Pictographic})/u);
                 if (match) {
                     emoji = match[0];
@@ -457,8 +1175,8 @@
                     <div class="metric-item"><span class="m-val">${log.protein || 0}</span><span class="m-label">蛋白</span></div>
                     <div class="metric-item"><span class="m-val">${log.fat || 0}</span><span class="m-label">脂肪</span></div>
                 `;
-                const opts = [{k:'fiber',l:'纤维'}, {k:'sugar',l:'糖'}, {k:'sodium',l:'钠'}, {k:'caffeine',l:'咖啡因'}];
-                opts.forEach(m => { if(log[m.k]>0) metricsHtml += `<div class="metric-item"><span class="m-val">${log[m.k]}</span><span class="m-label">${m.l}</span></div>`; });
+                const opts = [{ k: 'fiber', l: '纤维' }, { k: 'sugar', l: '糖' }, { k: 'sodium', l: '钠' }, { k: 'caffeine', l: '咖啡因' }];
+                opts.forEach(m => { if (log[m.k] > 0) metricsHtml += `<div class="metric-item"><span class="m-val">${log[m.k]}</span><span class="m-label">${m.l}</span></div>`; });
 
                 html += `
                 <div class="meal-card">
@@ -476,7 +1194,7 @@
                                 
                                 <div class="name-container">
                                     <div class="meal-name" id="name-display-${log.id}">${name}</div>
-                                    <input type="text" class="name-input" id="name-input-${log.id}">
+                                    <textarea class="name-input" id="name-input-${log.id}" rows="1"></textarea>
                                     
                                     <div class="edit-icon" id="edit-icon-${log.id}" onclick="toggleNameEdit('${log.id}')">
                                         <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
@@ -487,7 +1205,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <span class="meal-cal-badge">${log.calories||0} kcal</span>
+                            <span class="meal-cal-badge">${log.calories || 0} kcal</span>
                         </div>
                         <div class="metrics-grid">${metricsHtml}</div>
                     </div>
@@ -512,7 +1230,7 @@
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
                         const MAX_DIM = 2500; let width = img.width; let height = img.height;
-                        if (width > height) { if (width > MAX_DIM) { height *= MAX_DIM / width; width = MAX_DIM; } } 
+                        if (width > height) { if (width > MAX_DIM) { height *= MAX_DIM / width; width = MAX_DIM; } }
                         else { if (height > MAX_DIM) { width *= MAX_DIM / height; height = MAX_DIM; } }
                         canvas.width = width; canvas.height = height;
                         const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, width, height);
@@ -525,7 +1243,7 @@
         function getPhotoDate(file) {
             return new Promise((resolve) => {
                 if (typeof EXIF === 'undefined') { resolve(null); return; }
-                EXIF.getData(file, function() {
+                EXIF.getData(file, function () {
                     const t = EXIF.getTag(this, "DateTimeOriginal");
                     if (t) { const p = t.split(/[: ]/); resolve(`${p[0]}-${p[1]}-${p[2]}T${p[3]}:${p[4]}:${p[5]}+08:00`); }
                     else { const d = new Date(); resolve(d.toISOString()); }
@@ -536,12 +1254,12 @@
         function safeTrigger(type) {
             if (!db) { alert("数据库连接中..."); return; }
             const input = document.getElementById('fileInput');
-            if (type === 'camera') { input.setAttribute('capture', 'camera'); input.removeAttribute('multiple'); } 
+            if (type === 'camera') { input.setAttribute('capture', 'camera'); input.removeAttribute('multiple'); }
             else { input.removeAttribute('capture'); input.setAttribute('multiple', 'multiple'); }
             input.click();
         }
 
-        document.getElementById('fileInput').onchange = async function(e) {
+        document.getElementById('fileInput').onchange = async function (e) {
             const files = e.target.files;
             if (!files || files.length === 0) return;
             const mask = document.getElementById('upload-mask');
@@ -550,9 +1268,9 @@
             try {
                 for (let i = 0; i < files.length; i++) {
                     const file = files[i];
-                    maskText.innerText = `正在处理第 ${i+1} / ${files.length} 张...`;
+                    maskText.innerText = `正在处理第 ${i + 1} / ${files.length} 张...`;
                     const base64 = await processHighQualityImage(file);
-                    let recordDate = await getPhotoDate(file); 
+                    let recordDate = await getPhotoDate(file);
                     if (!recordDate) recordDate = new Date().toISOString();
                     const res = await fetch(CONFIG.funcUrl, {
                         method: 'POST',
@@ -560,14 +1278,102 @@
                         body: JSON.stringify({ imageBase64: base64, record_date: recordDate })
                     });
                     const json = await res.json();
-                    if (json.success) recordedDates.add(recordDate.split('T')[0]);
+                    if (json.success) {
+                        recordedDates.add(recordDate.split('T')[0]);
+                        // --- 新增：立刻解锁新日期，让它变成可点击 ---
+                        updateCalendarConfig();
+                    }
                     else console.error('上传失败:', json.error);
                 }
                 if (calendarInstance) calendarInstance.redraw();
-                loadData(currentDate); 
+                loadData(currentDate);
                 alert(`✅ 全部处理完成！`);
             } catch (err) { alert('❌ 错误: ' + err.message); } finally { mask.style.display = 'none'; this.value = ''; }
         };
+        // --- 放在 script 标签最底部的全局函数 (替换旧版) ---
+
+    // 1. 智能切换日期 (跳过空窗期)
+    window.changeDay = function(direction) {
+        // 1. 准备数据：把 Set 转成排好序的数组
+        const sortedList = Array.from(recordedDates).sort(); 
+        const currentStr = toDateStr(currentDate);
+        const todayStr = toDateStr(new Date());
+
+        let targetDateStr = null;
+
+        if (direction === -1) {
+            // [上一页逻辑]：找比当前日期小的最大值
+            // 过滤出所有比当前小的日期
+            const prevDates = sortedList.filter(d => d < currentStr);
+            if (prevDates.length > 0) {
+                // 取最后一个，就是离当前最近的“过去”
+                targetDateStr = prevDates[prevDates.length - 1];
+            }
+        } else {
+            // [下一页逻辑]：找比当前日期大的最小值
+            // 过滤出所有比当前大的日期
+            const nextDates = sortedList.filter(d => d > currentStr);
+            
+            if (nextDates.length > 0) {
+                // 取第一个，就是离当前最近的“未来”
+                targetDateStr = nextDates[0];
+            } else {
+                // 如果后面没记录了，且当前不是今天，那就直接跳回“今天”
+                if (currentStr < todayStr) {
+                    targetDateStr = todayStr;
+                }
+            }
+        }
+
+        // 如果找到了目标日期，就跳转
+        if (targetDateStr) {
+            currentDate = new Date(targetDateStr); // 解析字符串为日期对象
+            
+            // 同步 Flatpickr
+            if (calendarInstance) calendarInstance.setDate(currentDate, false);
+            
+            // 更新 UI
+            updateHeaderDate();
+            loadData(currentDate);
+        }
+    };
+
+    // 2. 更新头部显示的函数 (增加智能按钮置灰逻辑)
+    function updateHeaderDate() {
+        const currentStr = toDateStr(currentDate);
+        const todayStr = toDateStr(new Date());
+        
+        // 更新文字
+        const d = currentDate;
+        document.getElementById('headerDateStr').innerText = (currentStr === todayStr) 
+            ? "今天" 
+            : `${d.getMonth()+1}月${d.getDate()}日`;
+        
+        // --- 核心：计算按钮状态 ---
+        const sortedList = Array.from(recordedDates).sort();
+        
+        // 1. 判断“上一页”能否点击
+        // 只要存在比当前小的记录，左箭头就亮
+        const hasPrev = sortedList.some(d => d < currentStr);
+        const prevBtn = document.querySelector('.header-controls .glass-btn:first-child');
+        if (prevBtn) {
+            if (hasPrev) prevBtn.classList.remove('disabled');
+            else prevBtn.classList.add('disabled');
+        }
+
+        // 2. 判断“下一页”能否点击
+        // 条件：要么后面还有记录，要么当前还不是今天（可以回今天）
+        const hasNext = sortedList.some(d => d > currentStr);
+        const isNotToday = currentStr < todayStr;
+        
+        const nextBtn = document.getElementById('nextDayBtn');
+        if (nextBtn) {
+            // 如果后面有记录 OR 还没到今天，右箭头就亮
+            if (hasNext || isNotToday) nextBtn.classList.remove('disabled');
+            else nextBtn.classList.add('disabled'); // 已经是今天且未来没记录，就灰掉
+        }
+    }
     </script>
 </body>
+
 </html>
