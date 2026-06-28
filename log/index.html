@@ -65,15 +65,6 @@
                     rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 60%),
                 linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 42%);
         }
-        /* 液态折射（仅 Chromium 生效，Safari 自动回退，无害） */
-        .glass::after {
-            content: "";
-            position: absolute;
-            inset: 0;
-            border-radius: inherit;
-            pointer-events: none;
-            backdrop-filter: url(#liquid-distortion);
-        }
         /* 不支持 backdrop-filter 时的兜底 */
         @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
             .glass { background: rgba(255, 255, 255, 0.9); }
@@ -233,15 +224,6 @@
 </head>
 
 <body>
-    <!-- 液态折射滤镜：隐藏，仅供 .glass::after 的 backdrop-filter 引用 -->
-    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-        <filter id="liquid-distortion">
-            <feTurbulence type="fractalNoise" baseFrequency="0.008 0.012" numOctaves="2" seed="7" result="n"/>
-            <feGaussianBlur in="n" stdDeviation="2" result="b"/>
-            <feDisplacementMap in="SourceGraphic" in2="b" scale="40" xChannelSelector="R" yChannelSelector="G"/>
-        </filter>
-    </svg>
-
     <main>
         <header class="top glass lit">
             <div>
