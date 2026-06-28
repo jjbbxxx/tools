@@ -192,6 +192,8 @@
         .modal { width: 100%; max-width: 380px; padding: 24px; }
         .modal h2 { margin: 0 0 6px; font-size: 1.2rem; }
         .modal p { margin: 0 0 18px; color: var(--text-sub); font-size: 0.88rem; line-height: 1.5; }
+        .modal .hint { font-size: 0.8rem; color: var(--text-sub); margin-top: 14px; line-height: 1.5; }
+        .modal .hint code { background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 5px; word-break: break-all; }
         .hist-item {
             display: flex; justify-content: space-between; align-items: center;
             padding: 11px 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.4); font-size: 0.92rem;
@@ -245,12 +247,13 @@
     <!-- 登录 / 设置弹层 -->
     <div id="gate" class="overlay">
         <div class="modal glass">
-            <h2>连接你的服务器</h2>
-            <p>数据存在你自己的服务器上。填入 API 地址和访问密钥（只需一次，存在本设备）。</p>
-            <input id="gateApi" class="field" placeholder="https://api.gimago.cn">
+            <h2>输入访问密钥</h2>
+            <p>数据存在你自己的服务器上。密钥只需填一次，存在本设备。</p>
             <input id="gateToken" class="field" type="password" placeholder="访问密钥 APP_TOKEN">
             <button class="btn btn-primary btn-block" onclick="saveGate()">连接</button>
             <div id="gateMsg" style="color:var(--danger);font-size:0.85rem;margin-top:12px;text-align:center"></div>
+            <div class="hint">省事做法：把这样的链接存成书签，换设备点开即自动登录 ——<br>
+                <code id="magicLinkHint">.../log#t=你的密钥</code></div>
         </div>
     </div>
 
@@ -267,9 +270,9 @@
 
     <script>
         // --- 状态 ---
+        const API = 'https://api.gimago.cn'; // 固定后端地址，所有设备都一样，无需填写
         const store = {
-            get api() { return localStorage.getItem('log_api') || 'https://api.gimago.cn'; },
-            set api(v) { localStorage.setItem('log_api', v); },
+            get api() { return API; },
             get token() { return localStorage.getItem('log_token') || ''; },
             set token(v) { localStorage.setItem('log_token', v); },
         };
@@ -277,7 +280,7 @@
 
         // --- API 封装 ---
         async function api(method, path, body) {
-            const res = await fetch(store.api.replace(/\/$/, '') + path, {
+            const res = await fetch(API + path, {
                 method,
                 headers: {
                     'Content-Type': 'application/json',
@@ -426,17 +429,20 @@
 
         // --- 登录 / 设置 ---
         function openGate(msg) {
-            document.getElementById('gateApi').value = store.api;
             document.getElementById('gateToken').value = store.token;
             document.getElementById('gateMsg').textContent = msg || '';
+            // 已有密钥时，提示里展示可收藏的魔法链接（含真实密钥）
+            const hint = document.getElementById('magicLinkHint');
+            hint.textContent = store.token
+                ? location.origin + location.pathname + '#t=' + store.token
+                : '.../log#t=你的密钥';
             document.getElementById('gate').classList.add('show');
         }
         function openSettings() { openGate(''); }
         async function saveGate() {
-            const apiVal = document.getElementById('gateApi').value.trim();
             const tokenVal = document.getElementById('gateToken').value.trim();
-            if (!apiVal || !tokenVal) { document.getElementById('gateMsg').textContent = '都要填'; return; }
-            store.api = apiVal; store.token = tokenVal;
+            if (!tokenVal) { document.getElementById('gateMsg').textContent = '请填密钥'; return; }
+            store.token = tokenVal;
             try {
                 await api('GET', '/api/activities');
                 document.getElementById('gate').classList.remove('show');
@@ -471,9 +477,19 @@
             });
         }
 
+        // 魔法链接：打开 .../log#t=密钥 即自动登录，并把地址栏里的密钥清掉
+        function importTokenFromHash() {
+            const m = location.hash.match(/[#&]t=([^&]+)/);
+            if (m && m[1]) {
+                store.token = decodeURIComponent(m[1]);
+                history.replaceState(null, '', location.pathname);
+            }
+        }
+
         // --- 启动 ---
         window.addEventListener('load', () => {
             wireSpecular();
+            importTokenFromHash();
             if (!store.token) { openGate(''); }
             else { load(); }
         });
