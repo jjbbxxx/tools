@@ -466,13 +466,14 @@
             try {
                 await api('POST', '/api/log/events', { activity_id: id, done_at: dateInputToISO(dateStr) });
                 await load();
+                await loadMonth();
                 toast('记好了');
             } catch (e) { toast('失败：' + e.message); }
         }
 
         async function delActivity(id, name) {
             if (!confirm('删除「' + name + '」及它的全部历史记录？')) return;
-            try { await api('DELETE', '/api/log/activities/' + id); await load(); toast('已删除'); }
+            try { await api('DELETE', '/api/log/activities/' + id); await load(); await loadMonth(); toast('已删除'); }
             catch (e) { toast('失败：' + e.message); }
         }
 
@@ -494,7 +495,7 @@
             } catch (e) { listEl.innerHTML = '加载失败：' + e.message; }
         }
         async function delEvent(eventId, activityId) {
-            try { await api('DELETE', '/api/log/events/' + eventId); await openHist(activityId); await load(); }
+            try { await api('DELETE', '/api/log/events/' + eventId); await openHist(activityId); await load(); await loadMonth(); }
             catch (e) { toast('失败：' + e.message); }
         }
         function closeHist() { document.getElementById('hist').classList.remove('show'); }
