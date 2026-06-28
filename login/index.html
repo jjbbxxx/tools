@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>登录 · Gimago Tools</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔑</text></svg>">
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        :root { --text:#1d1d27; --text-sub:#5b5b6b; --accent:#5b7cff; --danger:#ff5a6a; }
+        html, body { margin:0; min-height:100%; }
+        body {
+            font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+            color:var(--text); min-height:100vh; display:flex; align-items:center; justify-content:center;
+            padding:20px; position:relative; overflow:hidden;
+        }
+        .bg { position:fixed; inset:-20vmax; z-index:-2; background:#eef1ff; overflow:hidden; }
+        .blob { position:absolute; width:60vmax; height:60vmax; border-radius:50%; filter:blur(60px); opacity:0.65; mix-blend-mode:screen; animation:float 22s ease-in-out infinite; }
+        .blob.b1 { background:#7aa2ff; top:-10vmax; left:-8vmax; }
+        .blob.b2 { background:#ff9ad0; top:20vmax; right:-12vmax; animation-delay:-7s; }
+        .blob.b3 { background:#8ef0d8; bottom:-16vmax; left:18vmax; animation-delay:-13s; }
+        .blob.b4 { background:#c4a0ff; top:38vmax; left:30vmax; animation-delay:-4s; }
+        @keyframes float { 0%,100%{transform:translate(0,0) scale(1);} 33%{transform:translate(6vmax,-4vmax) scale(1.12);} 66%{transform:translate(-5vmax,5vmax) scale(0.92);} }
+        @media (prefers-reduced-motion: reduce){ .blob{animation:none;} }
+
+        .glass {
+            position:relative; background:rgba(255,255,255,0.22);
+            backdrop-filter:blur(26px) saturate(185%); -webkit-backdrop-filter:blur(26px) saturate(185%);
+            border-radius:28px; border:1px solid rgba(255,255,255,0.45);
+            box-shadow:0 10px 34px rgba(40,50,110,0.16), inset 0 1px 0 rgba(255,255,255,0.65), inset 0 -10px 22px rgba(255,255,255,0.12);
+            overflow:hidden;
+        }
+        .glass::before { content:""; position:absolute; inset:0; border-radius:inherit; background:linear-gradient(180deg,rgba(255,255,255,0.4),rgba(255,255,255,0) 42%); pointer-events:none; }
+
+        .card { width:100%; max-width:380px; padding:30px 26px; }
+        .logo { text-align:center; font-size:2.2rem; margin-bottom:6px; }
+        h1 { text-align:center; margin:0 0 4px; font-size:1.4rem; letter-spacing:-0.5px; }
+        .sub { text-align:center; color:var(--text-sub); font-size:0.85rem; margin-bottom:22px; }
+        input { width:100%; padding:14px 15px; border-radius:14px; border:1px solid rgba(255,255,255,0.5); background:rgba(255,255,255,0.55); color:var(--text); outline:none; margin-bottom:13px; font-size:1rem; font-family:inherit; }
+        input:focus { border-color:var(--accent); background:rgba(255,255,255,0.75); }
+        .btn { width:100%; border:none; border-radius:16px; padding:14px; cursor:pointer; font-weight:600; font-size:1rem; transition:transform 0.12s; font-family:inherit; }
+        .btn:active { transform:scale(0.96); }
+        .btn-primary { color:#fff; background:linear-gradient(135deg,#6a8bff,#8a6aff); box-shadow:0 6px 18px rgba(106,122,255,0.4), inset 0 1px 0 rgba(255,255,255,0.5); }
+        .btn-ghost { background:rgba(255,255,255,0.4); color:var(--text); border:1px solid rgba(255,255,255,0.5); margin-top:11px; }
+        .msg { text-align:center; font-size:0.85rem; margin-top:14px; min-height:1.2em; }
+        .msg.err { color:var(--danger); }
+        .msg.ok { color:#1f9d55; }
+    </style>
+</head>
+
+<body>
+    <div class="bg"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div></div>
+
+    <div class="card glass">
+        <div class="logo">🔑</div>
+        <h1>Gimago Tools</h1>
+        <div class="sub">一个账号，通行所有小工具</div>
+        <input id="user" placeholder="用户名" autocomplete="username" autocapitalize="off">
+        <input id="pass" type="password" placeholder="密码" autocomplete="current-password">
+        <button class="btn btn-primary" onclick="doLogin()">登 录</button>
+        <button class="btn btn-ghost" onclick="doRegister()">注册新账号</button>
+        <div id="msg" class="msg"></div>
+    </div>
+
+    <script>
+        const API = 'https://api.gimago.cn';
+        // 同域名下所有 app 共享这两个 key
+        const TOKEN_KEY = 'gimago_token';
+        const USER_KEY = 'gimago_user';
+
+        // 跳转目标：只允许本站相对路径，防开放重定向
+        function nextTarget() {
+            const n = new URLSearchParams(location.search).get('next');
+            if (n && n.startsWith('/') && !n.startsWith('//')) return n;
+            return '/';
+        }
+
+        function msg(text, ok) {
+            const el = document.getElementById('msg');
+            el.textContent = text || '';
+            el.className = 'msg ' + (ok ? 'ok' : 'err');
+        }
+
+        async function authCall(path, body) {
+            const res = await fetch(API + path, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || ('错误 ' + res.status));
+            return data;
+        }
+
+        function fields() {
+            return {
+                u: document.getElementById('user').value.trim(),
+                p: document.getElementById('pass').value,
+            };
+        }
+
+        async function doLogin() {
+            const { u, p } = fields();
+            if (!u || !p) return msg('请输入用户名和密码');
+            msg('登录中…', true);
+            try {
+                const r = await authCall('/api/auth/login', { username: u, password: p });
+                finish(r);
+            } catch (e) { msg(e.message); }
+        }
+
+        async function doRegister() {
+            const { u, p } = fields();
+            if (!u || !p) return msg('请输入用户名和密码');
+            msg('注册中…', true);
+            try {
+                const r = await authCall('/api/auth/register', { username: u, password: p });
+                finish(r);
+            } catch (e) { msg(e.message); }
+        }
+
+        function finish(r) {
+            localStorage.setItem(TOKEN_KEY, r.token);
+            localStorage.setItem(USER_KEY, r.username);
+            location.href = nextTarget();
+        }
+
+        // 已登录则直接跳走
+        if (localStorage.getItem(TOKEN_KEY)) {
+            location.replace(nextTarget());
+        }
+        // 回车提交
+        document.getElementById('pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+    </script>
+</body>
+
+</html>

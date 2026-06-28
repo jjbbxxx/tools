@@ -76,7 +76,6 @@
                 inset 0 -10px 22px rgba(255, 255, 255, 0.12);
             overflow: hidden;
         }
-        /* 顶部细高光，模拟玻璃反光 */
         .glass::before {
             content: "";
             position: absolute;
@@ -85,7 +84,6 @@
             background: linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 42%);
             pointer-events: none;
         }
-        /* 跟随光标的镜面高光 */
         .glass.lit::after {
             content: "";
             position: absolute;
@@ -108,11 +106,7 @@
             padding: 18px 22px;
             margin: 26px 0 18px;
         }
-        header.top h1 {
-            margin: 0;
-            font-size: 1.5rem;
-            letter-spacing: -0.5px;
-        }
+        header.top h1 { margin: 0; font-size: 1.5rem; letter-spacing: -0.5px; }
         header.top .sub { font-size: 0.8rem; color: var(--text-sub); margin-top: 2px; }
         .icon-btn {
             border: none; background: rgba(255, 255, 255, 0.35); cursor: pointer;
@@ -121,7 +115,6 @@
         }
         .icon-btn:active { transform: scale(0.92); }
 
-        /* 通用控件 */
         input, button { font-family: inherit; font-size: 1rem; }
         .field {
             width: 100%; padding: 13px 15px; border-radius: 14px;
@@ -146,7 +139,6 @@
         }
         .btn-block { width: 100%; }
 
-        /* 新增活动区 */
         section.add { padding: 18px; margin-bottom: 20px; }
         section.add .row { display: flex; gap: 10px; }
         section.add .row .field { margin-bottom: 0; }
@@ -157,7 +149,6 @@
         .collapse { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
         .collapse.open { max-height: 360px; }
 
-        /* 活动卡片 */
         .card { padding: 18px 18px 16px; margin-bottom: 14px; }
         .card .head { display: flex; align-items: center; gap: 12px; }
         .card .emoji {
@@ -181,7 +172,6 @@
 
         .empty { text-align: center; color: var(--text-sub); padding: 40px 0; }
 
-        /* 弹层 */
         .overlay {
             position: fixed; inset: 0; z-index: 100;
             background: rgba(20, 22, 40, 0.35);
@@ -191,9 +181,6 @@
         .overlay.show { display: flex; }
         .modal { width: 100%; max-width: 380px; padding: 24px; }
         .modal h2 { margin: 0 0 6px; font-size: 1.2rem; }
-        .modal p { margin: 0 0 18px; color: var(--text-sub); font-size: 0.88rem; line-height: 1.5; }
-        .modal .hint { font-size: 0.8rem; color: var(--text-sub); margin-top: 14px; line-height: 1.5; }
-        .modal .hint code { background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 5px; word-break: break-all; }
         .hist-item {
             display: flex; justify-content: space-between; align-items: center;
             padding: 11px 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.4); font-size: 0.92rem;
@@ -220,9 +207,9 @@
         <header class="top glass lit">
             <div>
                 <h1>做事记录</h1>
-                <div class="sub">上次做某事，是多久之前？</div>
+                <div class="sub" id="subline">上次做某事，是多久之前？</div>
             </div>
-            <button class="icon-btn" onclick="openSettings()" title="设置">⚙️</button>
+            <button class="icon-btn" onclick="logout()" title="退出登录">⎋</button>
         </header>
 
         <section class="add glass lit">
@@ -244,19 +231,6 @@
         <section id="list"></section>
     </main>
 
-    <!-- 登录 / 设置弹层 -->
-    <div id="gate" class="overlay">
-        <div class="modal glass">
-            <h2>输入访问密钥</h2>
-            <p>数据存在你自己的服务器上。密钥只需填一次，存在本设备。</p>
-            <input id="gateToken" class="field" type="password" placeholder="访问密钥 APP_TOKEN">
-            <button class="btn btn-primary btn-block" onclick="saveGate()">连接</button>
-            <div id="gateMsg" style="color:var(--danger);font-size:0.85rem;margin-top:12px;text-align:center"></div>
-            <div class="hint">省事做法：把这样的链接存成书签，换设备点开即自动登录 ——<br>
-                <code id="magicLinkHint">.../log#t=你的密钥</code></div>
-        </div>
-    </div>
-
     <!-- 历史弹层 -->
     <div id="hist" class="overlay">
         <div class="modal glass">
@@ -269,16 +243,26 @@
     <div id="toast" class="toast"></div>
 
     <script>
-        // --- 状态 ---
-        const API = 'https://api.gimago.cn'; // 固定后端地址，所有设备都一样，无需填写
+        // --- 统一账号（同域名共享）---
+        const API = 'https://api.gimago.cn';
+        const TOKEN_KEY = 'gimago_token';
+        const USER_KEY = 'gimago_user';
         const store = {
-            get api() { return API; },
-            get token() { return localStorage.getItem('log_token') || ''; },
-            set token(v) { localStorage.setItem('log_token', v); },
+            get token() { return localStorage.getItem(TOKEN_KEY) || ''; },
+            get user() { return localStorage.getItem(USER_KEY) || ''; },
         };
+        function gotoLogin() {
+            location.href = '/login?next=' + encodeURIComponent(location.pathname);
+        }
+        function logout() {
+            localStorage.removeItem(TOKEN_KEY);
+            localStorage.removeItem(USER_KEY);
+            gotoLogin();
+        }
+
         let activities = [];
 
-        // --- API 封装 ---
+        // --- API 封装（所有 log 数据走 /api/log）---
         async function api(method, path, body) {
             const res = await fetch(API + path, {
                 method,
@@ -288,7 +272,7 @@
                 },
                 body: body ? JSON.stringify(body) : undefined,
             });
-            if (res.status === 401) { openGate('密钥不对，请重新填写'); throw new Error('未授权'); }
+            if (res.status === 401) { logout(); throw new Error('未登录'); }
             if (!res.ok) {
                 let msg = res.status;
                 try { msg = (await res.json()).error || msg; } catch (e) {}
@@ -320,7 +304,6 @@
             const p = (x) => String(x).padStart(2, '0');
             return n.getFullYear() + '-' + p(n.getMonth() + 1) + '-' + p(n.getDate());
         }
-        // yyyy-mm-dd -> 当天中午的 ISO（避免时区把日期挪到前一天）
         function dateInputToISO(s) {
             const [y, m, d] = s.split('-').map(Number);
             return new Date(y, m - 1, d, 12, 0, 0).toISOString();
@@ -364,9 +347,9 @@
 
         async function load() {
             try {
-                activities = await api('GET', '/api/activities');
+                activities = await api('GET', '/api/log/activities');
                 render();
-            } catch (e) { /* 401 已处理；其它静默 */ }
+            } catch (e) { /* 401 已跳登录；其它静默 */ }
         }
 
         // --- 操作 ---
@@ -376,7 +359,7 @@
             const emoji = document.getElementById('newEmoji').value.trim();
             const interval = document.getElementById('newInterval').value.trim();
             try {
-                await api('POST', '/api/activities', {
+                await api('POST', '/api/log/activities', {
                     name, emoji,
                     interval_days: interval ? Number(interval) : null,
                 });
@@ -392,7 +375,7 @@
         async function markDone(id) {
             const dateStr = document.getElementById('date-' + id).value || todayStr();
             try {
-                await api('POST', '/api/events', { activity_id: id, done_at: dateInputToISO(dateStr) });
+                await api('POST', '/api/log/events', { activity_id: id, done_at: dateInputToISO(dateStr) });
                 await load();
                 toast('记好了');
             } catch (e) { toast('失败：' + e.message); }
@@ -400,7 +383,7 @@
 
         async function delActivity(id, name) {
             if (!confirm('删除「' + name + '」及它的全部历史记录？')) return;
-            try { await api('DELETE', '/api/activities/' + id); await load(); toast('已删除'); }
+            try { await api('DELETE', '/api/log/activities/' + id); await load(); toast('已删除'); }
             catch (e) { toast('失败：' + e.message); }
         }
 
@@ -412,7 +395,7 @@
             listEl.innerHTML = '加载中…';
             document.getElementById('hist').classList.add('show');
             try {
-                const events = await api('GET', '/api/activities/' + id + '/events');
+                const events = await api('GET', '/api/log/activities/' + id + '/events');
                 if (!events.length) { listEl.innerHTML = '<div class="empty">还没有记录</div>'; return; }
                 listEl.innerHTML = events.map(e => `
                     <div class="hist-item">
@@ -422,36 +405,10 @@
             } catch (e) { listEl.innerHTML = '加载失败：' + e.message; }
         }
         async function delEvent(eventId, activityId) {
-            try { await api('DELETE', '/api/events/' + eventId); await openHist(activityId); await load(); }
+            try { await api('DELETE', '/api/log/events/' + eventId); await openHist(activityId); await load(); }
             catch (e) { toast('失败：' + e.message); }
         }
         function closeHist() { document.getElementById('hist').classList.remove('show'); }
-
-        // --- 登录 / 设置 ---
-        function openGate(msg) {
-            document.getElementById('gateToken').value = store.token;
-            document.getElementById('gateMsg').textContent = msg || '';
-            // 已有密钥时，提示里展示可收藏的魔法链接（含真实密钥）
-            const hint = document.getElementById('magicLinkHint');
-            hint.textContent = store.token
-                ? location.origin + location.pathname + '#t=' + store.token
-                : '.../log#t=你的密钥';
-            document.getElementById('gate').classList.add('show');
-        }
-        function openSettings() { openGate(''); }
-        async function saveGate() {
-            const tokenVal = document.getElementById('gateToken').value.trim();
-            if (!tokenVal) { document.getElementById('gateMsg').textContent = '请填密钥'; return; }
-            store.token = tokenVal;
-            try {
-                await api('GET', '/api/activities');
-                document.getElementById('gate').classList.remove('show');
-                load();
-                toast('已连接');
-            } catch (e) {
-                document.getElementById('gateMsg').textContent = '连不上：' + e.message;
-            }
-        }
 
         // --- 杂项 UI ---
         function toggleAdd(force) {
@@ -466,7 +423,6 @@
             clearTimeout(toastTimer);
             toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
         }
-        // 镜面高光跟随光标
         function wireSpecular() {
             document.querySelectorAll('.glass.lit').forEach(el => {
                 el.onpointermove = (e) => {
@@ -477,21 +433,12 @@
             });
         }
 
-        // 魔法链接：打开 .../log#t=密钥 即自动登录，并把地址栏里的密钥清掉
-        function importTokenFromHash() {
-            const m = location.hash.match(/[#&]t=([^&]+)/);
-            if (m && m[1]) {
-                store.token = decodeURIComponent(m[1]);
-                history.replaceState(null, '', location.pathname);
-            }
-        }
-
         // --- 启动 ---
         window.addEventListener('load', () => {
             wireSpecular();
-            importTokenFromHash();
-            if (!store.token) { openGate(''); }
-            else { load(); }
+            if (!store.token) { gotoLogin(); return; }
+            document.getElementById('subline').textContent = '你好，' + (store.user || '用户');
+            load();
         });
     </script>
 </body>
