@@ -182,11 +182,11 @@
         .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
         .cal-title { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.3px; }
         .cal-nav { display: flex; gap: 8px; align-items: center; }
-        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-        .cal-wd { text-align: center; font-size: 0.72rem; font-weight: 700; color: var(--text-sub); padding-bottom: 2px; }
+        .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+        .cal-wd { text-align: center; font-size: 0.7rem; font-weight: 700; color: var(--text-sub); padding-bottom: 2px; }
         .cal-cell {
-            position: relative; aspect-ratio: 1 / 1; min-height: 44px;
-            border-radius: 14px; padding: 5px 4px;
+            position: relative; aspect-ratio: 1 / 1; overflow: hidden;
+            border-radius: 12px; padding: 4px 2px;
             background: rgba(255, 255, 255, 0.32);
             border: 1px solid rgba(255, 255, 255, 0.45);
             display: flex; flex-direction: column; cursor: pointer;
