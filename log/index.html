@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>做事记录 · Liquid Glass</title>
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📌</text></svg>">
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        :root {
+            --text: #1d1d27;
+            --text-sub: #5b5b6b;
+            --accent: #5b7cff;
+            --danger: #ff5a6a;
+            --glass-bg: rgba(255, 255, 255, 0.22);
+            --glass-stroke: rgba(255, 255, 255, 0.45);
+            --radius: 26px;
+        }
+
+        html, body { margin: 0; min-height: 100%; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            color: var(--text);
+            position: relative;
+            overflow-x: hidden;
+            padding: 0 16px 80px;
+        }
+
+        /* 彩色光斑背景：让毛玻璃有东西可“透” */
+        .bg {
+            position: fixed;
+            inset: -20vmax;
+            z-index: -2;
+            background: #eef1ff;
+            overflow: hidden;
+        }
+        .blob {
+            position: absolute;
+            width: 60vmax;
+            height: 60vmax;
+            border-radius: 50%;
+            filter: blur(60px);
+            opacity: 0.65;
+            mix-blend-mode: screen;
+            animation: float 22s ease-in-out infinite;
+        }
+        .blob.b1 { background: #7aa2ff; top: -10vmax; left: -8vmax; }
+        .blob.b2 { background: #ff9ad0; top: 20vmax; right: -12vmax; animation-delay: -7s; }
+        .blob.b3 { background: #8ef0d8; bottom: -16vmax; left: 18vmax; animation-delay: -13s; }
+        .blob.b4 { background: #c4a0ff; top: 38vmax; left: 30vmax; animation-delay: -4s; }
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(6vmax, -4vmax) scale(1.12); }
+            66% { transform: translate(-5vmax, 5vmax) scale(0.92); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .blob { animation: none; }
+        }
+
+        /* 液态玻璃基类 */
+        .glass {
+            position: relative;
+            background: var(--glass-bg);
+            backdrop-filter: blur(26px) saturate(185%);
+            -webkit-backdrop-filter: blur(26px) saturate(185%);
+            border-radius: var(--radius);
+            border: 1px solid var(--glass-stroke);
+            box-shadow:
+                0 10px 34px rgba(40, 50, 110, 0.16),
+                inset 0 1px 0 rgba(255, 255, 255, 0.65),
+                inset 0 -10px 22px rgba(255, 255, 255, 0.12);
+            overflow: hidden;
+        }
+        /* 顶部细高光，模拟玻璃反光 */
+        .glass::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 42%);
+            pointer-events: none;
+        }
+        /* 跟随光标的镜面高光 */
+        .glass.lit::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            background: radial-gradient(180px circle at var(--x, 50%) var(--y, 0%),
+                rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 60%);
+            opacity: 0;
+            transition: opacity 0.25s;
+            pointer-events: none;
+        }
+        .glass.lit:hover::after { opacity: 1; }
+
+        main { max-width: 620px; margin: 0 auto; }
+
+        header.top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 22px;
+            margin: 26px 0 18px;
+        }
+        header.top h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            letter-spacing: -0.5px;
+        }
+        header.top .sub { font-size: 0.8rem; color: var(--text-sub); margin-top: 2px; }
+        .icon-btn {
+            border: none; background: rgba(255, 255, 255, 0.35); cursor: pointer;
+            width: 40px; height: 40px; border-radius: 14px; font-size: 1.1rem;
+            display: grid; place-items: center; backdrop-filter: blur(6px);
+        }
+        .icon-btn:active { transform: scale(0.92); }
+
+        /* 通用控件 */
+        input, button { font-family: inherit; font-size: 1rem; }
+        .field {
+            width: 100%; padding: 13px 15px; border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.5);
+            color: var(--text); outline: none; margin-bottom: 12px;
+        }
+        .field:focus { border-color: var(--accent); background: rgba(255, 255, 255, 0.72); }
+        .btn {
+            border: none; border-radius: 16px; padding: 13px 18px; cursor: pointer;
+            font-weight: 600; transition: transform 0.12s, filter 0.2s;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-primary {
+            color: #fff;
+            background: linear-gradient(135deg, #6a8bff, #8a6aff);
+            box-shadow: 0 6px 18px rgba(106, 122, 255, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        }
+        .btn-ghost {
+            background: rgba(255, 255, 255, 0.4); color: var(--text);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        .btn-block { width: 100%; }
+
+        /* 新增活动区 */
+        section.add { padding: 18px; margin-bottom: 20px; }
+        section.add .row { display: flex; gap: 10px; }
+        section.add .row .field { margin-bottom: 0; }
+        .add-head {
+            display: flex; align-items: center; gap: 8px;
+            font-weight: 600; margin: 0 0 14px 4px; font-size: 1.02rem;
+        }
+        .collapse { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+        .collapse.open { max-height: 360px; }
+
+        /* 活动卡片 */
+        .card { padding: 18px 18px 16px; margin-bottom: 14px; }
+        .card .head { display: flex; align-items: center; gap: 12px; }
+        .card .emoji {
+            font-size: 1.7rem; width: 48px; height: 48px; flex: 0 0 48px;
+            display: grid; place-items: center; border-radius: 16px;
+            background: rgba(255, 255, 255, 0.4);
+        }
+        .card .name { font-weight: 700; font-size: 1.15rem; flex: 1; }
+        .card .since { font-size: 0.92rem; color: var(--text-sub); margin: 10px 0 14px 2px; }
+        .card .since b { color: var(--text); font-weight: 700; }
+        .card .since.due b { color: var(--danger); }
+        .card .actions { display: flex; gap: 10px; align-items: center; }
+        .card .actions .field { margin: 0; flex: 0 0 150px; padding: 10px 12px; }
+        .card .actions .btn-primary { flex: 1; }
+        .card .more {
+            margin-top: 10px; font-size: 0.82rem; color: var(--text-sub);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .link { background: none; border: none; cursor: pointer; color: var(--text-sub); font-size: 0.82rem; padding: 4px; }
+        .link.danger { color: var(--danger); }
+
+        .empty { text-align: center; color: var(--text-sub); padding: 40px 0; }
+
+        /* 弹层 */
+        .overlay {
+            position: fixed; inset: 0; z-index: 100;
+            background: rgba(20, 22, 40, 0.35);
+            backdrop-filter: blur(4px);
+            display: none; align-items: center; justify-content: center; padding: 20px;
+        }
+        .overlay.show { display: flex; }
+        .modal { width: 100%; max-width: 380px; padding: 24px; }
+        .modal h2 { margin: 0 0 6px; font-size: 1.2rem; }
+        .modal p { margin: 0 0 18px; color: var(--text-sub); font-size: 0.88rem; line-height: 1.5; }
+        .hist-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 11px 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.4); font-size: 0.92rem;
+        }
+        .hist-item:last-child { border-bottom: none; }
+        .hist-list { max-height: 46vh; overflow-y: auto; margin: 4px 0 16px; }
+        .toast {
+            position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%) translateY(20px);
+            background: rgba(30, 32, 50, 0.85); color: #fff; padding: 11px 20px; border-radius: 14px;
+            font-size: 0.9rem; opacity: 0; transition: all 0.3s; z-index: 200; pointer-events: none;
+            backdrop-filter: blur(8px);
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    </style>
+</head>
+
+<body>
+    <div class="bg">
+        <div class="blob b1"></div><div class="blob b2"></div>
+        <div class="blob b3"></div><div class="blob b4"></div>
+    </div>
+
+    <main>
+        <header class="top glass lit">
+            <div>
+                <h1>做事记录</h1>
+                <div class="sub">上次做某事，是多久之前？</div>
+            </div>
+            <button class="icon-btn" onclick="openSettings()" title="设置">⚙️</button>
+        </header>
+
+        <section class="add glass lit">
+            <div class="add-head" onclick="toggleAdd()" style="cursor:pointer">
+                <span>➕ 新建一件要追踪的事</span>
+            </div>
+            <div id="addBody" class="collapse">
+                <div class="row" style="margin-bottom:12px">
+                    <input id="newEmoji" class="field" style="flex:0 0 70px;text-align:center" placeholder="🪴" maxlength="4">
+                    <input id="newName" class="field" style="flex:1" placeholder="名称，如 交电费 / 浇花">
+                </div>
+                <div class="row" style="margin-bottom:14px">
+                    <input id="newInterval" class="field" type="number" min="1" placeholder="每隔多少天（选填，留给提醒）">
+                </div>
+                <button class="btn btn-primary btn-block" onclick="addActivity()">创建</button>
+            </div>
+        </section>
+
+        <section id="list"></section>
+    </main>
+
+    <!-- 登录 / 设置弹层 -->
+    <div id="gate" class="overlay">
+        <div class="modal glass">
+            <h2>连接你的服务器</h2>
+            <p>数据存在你自己的服务器上。填入 API 地址和访问密钥（只需一次，存在本设备）。</p>
+            <input id="gateApi" class="field" placeholder="https://api.gimago.cn">
+            <input id="gateToken" class="field" type="password" placeholder="访问密钥 APP_TOKEN">
+            <button class="btn btn-primary btn-block" onclick="saveGate()">连接</button>
+            <div id="gateMsg" style="color:var(--danger);font-size:0.85rem;margin-top:12px;text-align:center"></div>
+        </div>
+    </div>
+
+    <!-- 历史弹层 -->
+    <div id="hist" class="overlay">
+        <div class="modal glass">
+            <h2 id="histTitle">历史</h2>
+            <div id="histList" class="hist-list"></div>
+            <button class="btn btn-ghost btn-block" onclick="closeHist()">关闭</button>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // --- 状态 ---
+        const store = {
+            get api() { return localStorage.getItem('log_api') || 'https://api.gimago.cn'; },
+            set api(v) { localStorage.setItem('log_api', v); },
+            get token() { return localStorage.getItem('log_token') || ''; },
+            set token(v) { localStorage.setItem('log_token', v); },
+        };
+        let activities = [];
+
+        // --- API 封装 ---
+        async function api(method, path, body) {
+            const res = await fetch(store.api.replace(/\/$/, '') + path, {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + store.token,
+                },
+                body: body ? JSON.stringify(body) : undefined,
+            });
+            if (res.status === 401) { openGate('密钥不对，请重新填写'); throw new Error('未授权'); }
+            if (!res.ok) {
+                let msg = res.status;
+                try { msg = (await res.json()).error || msg; } catch (e) {}
+                throw new Error(msg);
+            }
+            return res.status === 204 ? null : res.json();
+        }
+
+        // --- 日期工具 ---
+        function daysAgo(iso) {
+            const t = new Date(iso);
+            const a = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+            const n = new Date();
+            const b = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+            return Math.round((b - a) / 86400000);
+        }
+        function sinceText(iso) {
+            const d = daysAgo(iso);
+            if (d <= 0) return '今天';
+            if (d === 1) return '昨天';
+            return d + ' 天前';
+        }
+        function fmtDate(iso) {
+            const d = new Date(iso);
+            return (d.getMonth() + 1) + '月' + d.getDate() + '日';
+        }
+        function todayStr() {
+            const n = new Date();
+            const p = (x) => String(x).padStart(2, '0');
+            return n.getFullYear() + '-' + p(n.getMonth() + 1) + '-' + p(n.getDate());
+        }
+        // yyyy-mm-dd -> 当天中午的 ISO（避免时区把日期挪到前一天）
+        function dateInputToISO(s) {
+            const [y, m, d] = s.split('-').map(Number);
+            return new Date(y, m - 1, d, 12, 0, 0).toISOString();
+        }
+
+        // --- 渲染 ---
+        function esc(s) {
+            return String(s).replace(/[&<>"']/g, c =>
+                ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        function render() {
+            const el = document.getElementById('list');
+            if (!activities.length) {
+                el.innerHTML = '<div class="empty">还没有记录的事项<br>点上面「新建」开始吧</div>';
+                return;
+            }
+            el.innerHTML = activities.map(a => {
+                const due = a.interval_days && a.last_done && daysAgo(a.last_done) >= a.interval_days;
+                const since = a.last_done
+                    ? `上次：<b>${sinceText(a.last_done)}</b>（${fmtDate(a.last_done)}）`
+                    : '<b>还没记录过</b>';
+                return `
+                <div class="card glass lit">
+                    <div class="head">
+                        <div class="emoji">${esc(a.emoji) || '📍'}</div>
+                        <div class="name">${esc(a.name)}</div>
+                    </div>
+                    <div class="since ${due ? 'due' : ''}">${since}${due ? ' · 该做了' : ''}</div>
+                    <div class="actions">
+                        <input type="date" class="field" id="date-${a.id}" value="${todayStr()}" max="${todayStr()}">
+                        <button class="btn btn-primary" onclick="markDone(${a.id})">✓ 记一次</button>
+                    </div>
+                    <div class="more">
+                        <button class="link" onclick="openHist(${a.id})">历史 (${a.event_count})</button>
+                        <button class="link danger" onclick="delActivity(${a.id}, '${esc(a.name)}')">删除事项</button>
+                    </div>
+                </div>`;
+            }).join('');
+            wireSpecular();
+        }
+
+        async function load() {
+            try {
+                activities = await api('GET', '/api/activities');
+                render();
+            } catch (e) { /* 401 已处理；其它静默 */ }
+        }
+
+        // --- 操作 ---
+        async function addActivity() {
+            const name = document.getElementById('newName').value.trim();
+            if (!name) return toast('请填名称');
+            const emoji = document.getElementById('newEmoji').value.trim();
+            const interval = document.getElementById('newInterval').value.trim();
+            try {
+                await api('POST', '/api/activities', {
+                    name, emoji,
+                    interval_days: interval ? Number(interval) : null,
+                });
+                document.getElementById('newName').value = '';
+                document.getElementById('newEmoji').value = '';
+                document.getElementById('newInterval').value = '';
+                toggleAdd(false);
+                await load();
+                toast('已创建');
+            } catch (e) { toast('失败：' + e.message); }
+        }
+
+        async function markDone(id) {
+            const dateStr = document.getElementById('date-' + id).value || todayStr();
+            try {
+                await api('POST', '/api/events', { activity_id: id, done_at: dateInputToISO(dateStr) });
+                await load();
+                toast('记好了');
+            } catch (e) { toast('失败：' + e.message); }
+        }
+
+        async function delActivity(id, name) {
+            if (!confirm('删除「' + name + '」及它的全部历史记录？')) return;
+            try { await api('DELETE', '/api/activities/' + id); await load(); toast('已删除'); }
+            catch (e) { toast('失败：' + e.message); }
+        }
+
+        // --- 历史弹层 ---
+        async function openHist(id) {
+            const a = activities.find(x => x.id === id);
+            document.getElementById('histTitle').textContent = (a.emoji || '') + ' ' + a.name;
+            const listEl = document.getElementById('histList');
+            listEl.innerHTML = '加载中…';
+            document.getElementById('hist').classList.add('show');
+            try {
+                const events = await api('GET', '/api/activities/' + id + '/events');
+                if (!events.length) { listEl.innerHTML = '<div class="empty">还没有记录</div>'; return; }
+                listEl.innerHTML = events.map(e => `
+                    <div class="hist-item">
+                        <span>${fmtDate(e.done_at)} <span style="color:var(--text-sub)">· ${sinceText(e.done_at)}</span></span>
+                        <button class="link danger" onclick="delEvent(${e.id}, ${id})">删</button>
+                    </div>`).join('');
+            } catch (e) { listEl.innerHTML = '加载失败：' + e.message; }
+        }
+        async function delEvent(eventId, activityId) {
+            try { await api('DELETE', '/api/events/' + eventId); await openHist(activityId); await load(); }
+            catch (e) { toast('失败：' + e.message); }
+        }
+        function closeHist() { document.getElementById('hist').classList.remove('show'); }
+
+        // --- 登录 / 设置 ---
+        function openGate(msg) {
+            document.getElementById('gateApi').value = store.api;
+            document.getElementById('gateToken').value = store.token;
+            document.getElementById('gateMsg').textContent = msg || '';
+            document.getElementById('gate').classList.add('show');
+        }
+        function openSettings() { openGate(''); }
+        async function saveGate() {
+            const apiVal = document.getElementById('gateApi').value.trim();
+            const tokenVal = document.getElementById('gateToken').value.trim();
+            if (!apiVal || !tokenVal) { document.getElementById('gateMsg').textContent = '都要填'; return; }
+            store.api = apiVal; store.token = tokenVal;
+            try {
+                await api('GET', '/api/activities');
+                document.getElementById('gate').classList.remove('show');
+                load();
+                toast('已连接');
+            } catch (e) {
+                document.getElementById('gateMsg').textContent = '连不上：' + e.message;
+            }
+        }
+
+        // --- 杂项 UI ---
+        function toggleAdd(force) {
+            const b = document.getElementById('addBody');
+            const open = force === undefined ? !b.classList.contains('open') : force;
+            b.classList.toggle('open', open);
+        }
+        let toastTimer;
+        function toast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg; t.classList.add('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+        }
+        // 镜面高光跟随光标
+        function wireSpecular() {
+            document.querySelectorAll('.glass.lit').forEach(el => {
+                el.onpointermove = (e) => {
+                    const r = el.getBoundingClientRect();
+                    el.style.setProperty('--x', (e.clientX - r.left) + 'px');
+                    el.style.setProperty('--y', (e.clientY - r.top) + 'px');
+                };
+            });
+        }
+
+        // --- 启动 ---
+        window.addEventListener('load', () => {
+            wireSpecular();
+            if (!store.token) { openGate(''); }
+            else { load(); }
+        });
+    </script>
+</body>
+
+</html>

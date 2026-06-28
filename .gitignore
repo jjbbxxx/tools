@@ -6,3 +6,15 @@ nutrition_images/
 # 或者忽略所有 jpg/png 文件
 *.jpg
 *.png
+
+# 做事记录后端：依赖、密钥、数据库不入库
+server/node_modules/
+server/.env
+server/data/
+*.db
+*.db-shm
+*.db-wal
+
+# 个人数据备份（含真实饮食记录）不入公开仓库
+backup/
+.DS_Store
