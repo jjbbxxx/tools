@@ -202,6 +202,20 @@ app.get('/api/log/activities/:id/events', requireAuth, wrap((req, res) => {
   res.json(rows);
 }));
 
+// 按日期区间取「全部事项」的事件，喂前端日历（带事项名/emoji，免二次查表）
+app.get('/api/log/events', requireAuth, wrap((req, res) => {
+  const from = cleanDoneAt(req.query.from);
+  const to = cleanDoneAt(req.query.to);
+  if (!from || !to) return res.status(400).json({ error: 'from/to 需为有效日期' });
+  const rows = db.prepare(`
+    SELECT e.id, e.activity_id, e.done_at, e.note, a.name, a.emoji
+    FROM events e JOIN activities a ON a.id = e.activity_id
+    WHERE a.user_id = ? AND e.done_at >= ? AND e.done_at < ?
+    ORDER BY e.done_at
+  `).all(req.uid, from, to);
+  res.json(rows);
+}));
+
 app.post('/api/log/events', requireAuth, wrap((req, res) => {
   const activityId = Number(req.body && req.body.activity_id);
   const own = db.prepare('SELECT id FROM activities WHERE id = ? AND user_id = ?').get(activityId, req.uid);
