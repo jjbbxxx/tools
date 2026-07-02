@@ -388,7 +388,7 @@
                 return `
                 <div class="card glass lit">
                     <div class="head">
-                        <div class="emoji">${esc(a.emoji) || '📍'}</div>
+                        <div class="emoji" onclick="editEmoji(${a.id})" title="点击换图标" style="cursor:pointer">${esc(a.emoji) || '📍'}</div>
                         <div class="name">${esc(a.name)}</div>
                     </div>
                     <div class="since ${due ? 'due' : ''}">${since}${due ? ' · 该做了' : ''}</div>
@@ -397,7 +397,10 @@
                         <button class="btn btn-primary" onclick="markDone(${a.id})">✓ 记一次</button>
                     </div>
                     <div class="more">
-                        <button class="link" onclick="openHist(${a.id})">历史 (${a.event_count})</button>
+                        <span style="display:flex;gap:14px">
+                            <button class="link" onclick="openHist(${a.id})">历史 (${a.event_count})</button>
+                            <button class="link" onclick="renameActivity(${a.id})">改名</button>
+                        </span>
                         <button class="link danger" onclick="delActivity(${a.id}, '${esc(a.name)}')">删除事项</button>
                     </div>
                 </div>`;
@@ -457,6 +460,29 @@
             if (!confirm('删除「' + name + '」及它的全部历史记录？')) return;
             try { await api('DELETE', '/api/log/activities/' + id); await load(); await loadMonth(); toast('已删除'); }
             catch (e) { toast('失败：' + e.message); }
+        }
+
+        // --- 编辑事项：图标 / 名称 ---
+        function editEmoji(id) {
+            openEmojiPicker(async (e) => {
+                try {
+                    await api('PATCH', '/api/log/activities/' + id, { emoji: e });
+                    await load(); await loadMonth();
+                    toast('图标已更新');
+                } catch (err) { toast('失败：' + err.message); }
+            });
+        }
+        async function renameActivity(id) {
+            const a = activities.find(x => x.id === id);
+            const input = prompt('改名', a ? a.name : '');
+            if (input === null) return;
+            const name = input.trim();
+            if (!name) return toast('名称不能为空');
+            try {
+                await api('PATCH', '/api/log/activities/' + id, { name });
+                await load(); await loadMonth();
+                toast('已改名');
+            } catch (err) { toast('失败：' + err.message); }
         }
 
         // --- 历史弹层 ---
