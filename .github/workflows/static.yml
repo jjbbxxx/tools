@@ -19,10 +19,10 @@ permissions:
   pages: write
   id-token: write
 
-# 并发控制：如果有新的构建来了，把旧的取消掉
+# 并发控制：新构建来了就取消仍在排队/进行中的旧构建，避免堆积排队
 concurrency:
   group: "pages"
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   # 单一的部署任务
