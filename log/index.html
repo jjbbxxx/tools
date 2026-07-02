@@ -132,6 +132,14 @@
             background: rgba(255, 255, 255, 0.4);
         }
         .card .name { font-weight: 700; font-size: 1.15rem; flex: 1; }
+        .card .icon-edit {
+            flex: 0 0 auto; border: none; cursor: pointer;
+            width: 34px; height: 34px; border-radius: 10px;
+            font-size: 0.95rem; color: var(--text-sub);
+            background: rgba(255, 255, 255, 0.4);
+            display: grid; place-items: center;
+        }
+        .card .icon-edit:active { transform: scale(0.9); }
         .card .since {
             display: inline-flex; align-items: center; gap: 4px;
             font-size: 0.82rem; color: var(--text-sub);
@@ -390,6 +398,7 @@
                     <div class="head">
                         <div class="emoji" onclick="editEmoji(${a.id})" title="点击换图标" style="cursor:pointer">${esc(a.emoji) || '📍'}</div>
                         <div class="name">${esc(a.name)}</div>
+                        <button class="icon-edit" onclick="renameActivity(${a.id})" title="改名">✎</button>
                     </div>
                     <div class="since ${due ? 'due' : ''}">${since}${due ? ' · 该做了' : ''}</div>
                     <div class="actions">
@@ -397,10 +406,7 @@
                         <button class="btn btn-primary" onclick="markDone(${a.id})">✓ 记一次</button>
                     </div>
                     <div class="more">
-                        <span style="display:flex;gap:14px">
-                            <button class="link" onclick="openHist(${a.id})">历史 (${a.event_count})</button>
-                            <button class="link" onclick="renameActivity(${a.id})">改名</button>
-                        </span>
+                        <button class="link" onclick="openHist(${a.id})">历史 (${a.event_count})</button>
                         <button class="link danger" onclick="delActivity(${a.id}, '${esc(a.name)}')">删除事项</button>
                     </div>
                 </div>`;
