@@ -6,6 +6,7 @@
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>做事记录</title>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📌</text></svg>">
     <style>
@@ -217,17 +218,22 @@
             background-repeat: no-repeat; background-position: right 12px center; padding-right: 34px;
         }
 
-        /* --- Emoji 选择器 --- */
+        /* --- Emoji 选择器（emoji-picker-element：全量最新 emoji）--- */
         .emoji-modal { width: 100%; max-width: 380px; height: 72vh; max-height: 560px; display: flex; flex-direction: column; padding: 16px; }
-        .emoji-bar { display: flex; gap: 8px; align-items: center; }
-        .emoji-bar .field { margin: 0; flex: 1; }
-        .emoji-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 10px 0; flex: 0 0 auto; scrollbar-width: none; }
-        .emoji-tabs::-webkit-scrollbar { display: none; }
-        .emoji-tabs button { flex: 0 0 auto; border: none; cursor: pointer; width: 40px; height: 40px; border-radius: 12px; font-size: 1.15rem; background: rgba(255, 255, 255, 0.4); }
-        .emoji-tabs button.active { background: var(--accent); }
-        .emoji-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; align-content: start; }
-        .emoji-grid button { border: none; background: none; cursor: pointer; aspect-ratio: 1; border-radius: 10px; font-size: 1.45rem; }
-        .emoji-grid button:hover { background: rgba(255, 255, 255, 0.55); }
+        .emoji-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-weight: 700; }
+        emoji-picker {
+            width: 100%; flex: 1; min-height: 0;
+            --background: transparent;
+            --border-color: transparent;
+            --indicator-color: var(--accent);
+            --input-border-radius: 14px;
+            --input-background-color: rgba(255, 255, 255, 0.5);
+            --input-border-color: transparent;
+            --input-font-color: #000;
+            --input-placeholder-color: var(--text-sub);
+            --button-active-background: rgba(255, 255, 255, 0.55);
+            --button-hover-background: rgba(255, 255, 255, 0.4);
+        }
     </style>
 </head>
 
@@ -283,15 +289,14 @@
         </div>
     </div>
 
-    <!-- Emoji 选择器弹层 -->
+    <!-- Emoji 选择器弹层（emoji-picker-element：全量最新 emoji）-->
     <div id="emojiModal" class="overlay">
         <div class="modal glass emoji-modal">
             <div class="emoji-bar">
-                <input id="emojiSearch" class="field" placeholder="搜索 emoji…" oninput="onEmojiSearch()">
+                <span>选择图标</span>
                 <button class="icon-btn" onclick="closeEmoji()" title="关闭">✕</button>
             </div>
-            <div class="emoji-tabs" id="emojiTabs"></div>
-            <div class="emoji-grid" id="emojiGrid"></div>
+            <emoji-picker locale="zh" data-source="https://cdn.jsdelivr.net/npm/emoji-picker-element-data@^1/zh/cldr/data.json"></emoji-picker>
         </div>
     </div>
 
@@ -655,60 +660,20 @@
             } catch (e) { toast('失败：' + e.message); }
         }
 
-        // --- Emoji 选择器（内置分类数据，免 CDN 依赖）---
-        const EMOJI_CATS = [
-            { icon: '⭐', list: [['📌', '钉 图钉 pin'], ['✅', '完成 对勾 check done'], ['⭐', '星 收藏 star'], ['❤️', '爱心 喜欢 heart'], ['🔥', '火 热 fire'], ['💧', '水 喝水 water'], ['🌿', '草 植物 leaf'], ['🪴', '盆栽 浇花 plant'], ['🧹', '扫 打扫 broom clean'], ['🧺', '洗衣 篮 laundry'], ['🛒', '购物 买 cart'], ['💊', '药 吃药 pill'], ['💡', '灯 想法 idea'], ['🔋', '电 充电 battery'], ['🔑', '钥匙 key'], ['📞', '电话 打电话 call'], ['🎯', '目标 target'], ['🏃', '跑 运动 run'], ['🚿', '洗澡 淋浴 shower'], ['🛏️', '睡 床 bed sleep'], ['☕', '咖啡 coffee'], ['🍚', '饭 吃饭 rice meal'], ['💪', '健身 力量 strong'], ['📚', '书 看书 book read'], ['✍️', '写 记 write'], ['🗑️', '垃圾 倒垃圾 trash'], ['♻️', '回收 recycle'], ['🧴', '护肤 瓶 lotion'], ['🧼', '肥皂 洗 soap'], ['🩹', '创可贴 bandage']] },
-            { icon: '😀', list: [['😀', '笑 grin'], ['😄', '开心 happy'], ['😁', '露齿 beam'], ['😆', '大笑 laugh'], ['😊', '微笑 smile'], ['🙂', '略笑 slight'], ['😉', '眨眼 wink'], ['😍', '爱慕 love'], ['🥰', '幸福 smiling'], ['😘', '飞吻 kiss'], ['😎', '酷 墨镜 cool'], ['🤩', '星星眼 star'], ['🥳', '庆祝 party'], ['😴', '睡 sleep'], ['😪', '困 sleepy'], ['🤔', '思考 think'], ['🙄', '翻白眼 roll'], ['😐', '面无表情 neutral'], ['🙃', '倒脸 upside'], ['😅', '尬笑 sweat'], ['😂', '笑哭 joy'], ['🤣', '狂笑 rofl'], ['😭', '大哭 cry'], ['😢', '流泪 tear'], ['😡', '生气 angry'], ['😱', '惊恐 scream'], ['😬', '龇牙 grimace'], ['🤯', '爆炸 mind'], ['🥱', '哈欠 yawn'], ['😷', '口罩 mask']] },
-            { icon: '🧑', list: [['👍', '赞 good thumbs'], ['👎', '踩 bad'], ['👏', '鼓掌 clap'], ['🙌', '举手 raise'], ['👋', '挥手 wave hi'], ['🤝', '握手 deal'], ['✊', '拳 fist'], ['👀', '眼睛 look'], ['🧠', '脑 brain'], ['💪', '手臂 muscle'], ['🦶', '脚 foot'], ['👶', '婴儿 baby'], ['🧑', '人 person'], ['👩', '女 woman'], ['👨', '男 man'], ['👵', '奶奶 old'], ['👴', '爷爷 old'], ['🙆', 'ok 圈'], ['🙅', '不 no'], ['💁', '服务 info'], ['🤷', '耸肩 shrug'], ['🙋', '提问 raise'], ['🧑‍🍳', '厨师 cook'], ['👮', '警察 police'], ['🧑‍⚕️', '医生 doctor'], ['🚶', '走 walk'], ['💆', '按摩 massage'], ['💇', '理发 haircut'], ['🤰', '孕 pregnant'], ['🧘', '冥想 yoga']] },
-            { icon: '🐶', list: [['🐶', '狗 dog'], ['🐱', '猫 cat'], ['🐭', '鼠 mouse'], ['🐹', '仓鼠 hamster'], ['🐰', '兔 rabbit'], ['🦊', '狐狸 fox'], ['🐻', '熊 bear'], ['🐼', '熊猫 panda'], ['🐨', '考拉 koala'], ['🐯', '虎 tiger'], ['🦁', '狮 lion'], ['🐮', '牛 cow'], ['🐷', '猪 pig'], ['🐸', '蛙 frog'], ['🐵', '猴 monkey'], ['🐔', '鸡 chicken'], ['🐧', '企鹅 penguin'], ['🐦', '鸟 bird'], ['🦆', '鸭 duck'], ['🦉', '猫头鹰 owl'], ['🐴', '马 horse'], ['🐝', '蜂 bee'], ['🦋', '蝶 butterfly'], ['🐌', '蜗牛 snail'], ['🐞', '瓢虫 ladybug'], ['🐢', '龟 turtle'], ['🐍', '蛇 snake'], ['🐠', '鱼 fish'], ['🐬', '海豚 dolphin'], ['🐳', '鲸 whale']] },
-            { icon: '🍎', list: [['🍎', '苹果 apple'], ['🍌', '香蕉 banana'], ['🍇', '葡萄 grape'], ['🍓', '草莓 strawberry'], ['🍑', '桃 peach'], ['🍍', '菠萝 pineapple'], ['🥭', '芒果 mango'], ['🍅', '番茄 tomato'], ['🥑', '牛油果 avocado'], ['🥦', '西兰花 broccoli'], ['🥕', '胡萝卜 carrot'], ['🌽', '玉米 corn'], ['🍞', '面包 bread'], ['🧀', '奶酪 cheese'], ['🍳', '蛋 egg'], ['🍗', '鸡腿 meat'], ['🥩', '牛排 steak'], ['🍔', '汉堡 burger'], ['🍟', '薯条 fries'], ['🍕', '披萨 pizza'], ['🌭', '热狗 hotdog'], ['🥪', '三明治 sandwich'], ['🌮', '塔可 taco'], ['🍜', '面 noodle'], ['🍱', '便当 bento'], ['🍣', '寿司 sushi'], ['🍚', '米饭 rice'], ['🍰', '蛋糕 cake'], ['🍦', '冰淇淋 ice'], ['🍩', '甜甜圈 donut'], ['🍪', '饼干 cookie'], ['☕', '咖啡 coffee'], ['🍵', '茶 tea'], ['🧋', '奶茶 boba'], ['🍺', '啤酒 beer'], ['🍷', '红酒 wine']] },
-            { icon: '🚗', list: [['🚗', '车 car'], ['🚕', '出租 taxi'], ['🚌', '公交 bus'], ['🏎️', '赛车 race'], ['🚓', '警车 police'], ['🚑', '救护 ambulance'], ['🚒', '消防 fire'], ['🚲', '自行车 bike'], ['🛵', '踏板 scooter'], ['🏍️', '摩托 motorcycle'], ['🚄', '高铁 train'], ['🚀', '火箭 rocket'], ['✈️', '飞机 plane'], ['🚢', '轮船 ship'], ['⛵', '帆船 boat'], ['🗺️', '地图 map'], ['🧳', '行李 luggage'], ['⛽', '加油 gas'], ['🏠', '家 home'], ['🏢', '楼 office'], ['🏥', '医院 hospital'], ['🏦', '银行 bank'], ['🏪', '便利店 store'], ['🏫', '学校 school'], ['⛰️', '山 mountain'], ['🏖️', '海滩 beach'], ['🌊', '海浪 wave'], ['🌳', '树 tree'], ['🌲', '松树 pine'], ['🏔️', '雪山 alps']] },
-            { icon: '⚽', list: [['⚽', '足球 soccer'], ['🏀', '篮球 basketball'], ['🏈', '橄榄球 football'], ['⚾', '棒球 baseball'], ['🎾', '网球 tennis'], ['🏐', '排球 volleyball'], ['🏓', '乒乓 pingpong'], ['🏸', '羽毛球 badminton'], ['🥊', '拳击 boxing'], ['⛳', '高尔夫 golf'], ['🏹', '射箭 archery'], ['🎣', '钓鱼 fishing'], ['⛸️', '滑冰 skate'], ['🎿', '滑雪 ski'], ['🏂', '单板 snowboard'], ['🏋️', '举重 lift'], ['🤸', '体操 gym'], ['🚴', '骑行 cycle'], ['🧘', '瑜伽 yoga'], ['🎮', '游戏 game'], ['🎲', '骰子 dice'], ['♟️', '棋 chess'], ['🎸', '吉他 guitar'], ['🎹', '钢琴 piano'], ['🥁', '鼓 drum'], ['🎤', '麦克 mic'], ['🎬', '电影 movie'], ['🎨', '画 art'], ['🎯', '飞镖 dart'], ['🎰', '老虎机 slot']] },
-            { icon: '⌚', list: [['⌚', '手表 watch'], ['📱', '手机 phone'], ['💻', '笔记本 laptop'], ['⌨️', '键盘 keyboard'], ['🖥️', '台式 desktop'], ['🖨️', '打印机 printer'], ['📷', '相机 camera'], ['📺', '电视 tv'], ['🔦', '手电 torch'], ['🔌', '插头 plug'], ['🧯', '灭火器 extinguisher'], ['🔧', '扳手 wrench'], ['🔨', '锤 hammer'], ['🪛', '螺丝刀 screwdriver'], ['⚙️', '齿轮 gear'], ['🧰', '工具箱 toolbox'], ['🩺', '听诊器 stethoscope'], ['🧽', '海绵 sponge'], ['🚽', '马桶 toilet'], ['🛁', '浴缸 bath'], ['🧸', '玩偶 toy'], ['🎁', '礼物 gift'], ['📦', '箱 box'], ['✉️', '信 mail'], ['📔', '本子 notebook'], ['📕', '书 book'], ['🖊️', '笔 pen'], ['✏️', '铅笔 pencil'], ['📎', '别针 clip'], ['✂️', '剪刀 scissors'], ['🔒', '锁 lock']] },
-            { icon: '❤️', list: [['❤️', '红心 heart'], ['🧡', '橙心 orange'], ['💛', '黄心 yellow'], ['💚', '绿心 green'], ['💙', '蓝心 blue'], ['💜', '紫心 purple'], ['🖤', '黑心 black'], ['🤍', '白心 white'], ['✅', '对 check'], ['❌', '错 cross'], ['⭕', '圈 circle'], ['❗', '叹号 exclaim'], ['❓', '问号 question'], ['💯', '满分 hundred'], ['🔥', '火 fire'], ['⭐', '星 star'], ['✨', '闪 sparkle'], ['⚡', '闪电 lightning'], ['💧', '水滴 drop'], ['🌈', '彩虹 rainbow'], ['☀️', '太阳 sun'], ['🌙', '月 moon'], ['⏰', '闹钟 alarm'], ['📅', '日历 calendar'], ['🔔', '铃 bell'], ['💬', '对话 chat'], ['🎵', '音符 note'], ['♻️', '回收 recycle'], ['⚠️', '警告 warning'], ['🚫', '禁止 ban'], ['💲', '钱 money']] },
-        ];
+        // --- Emoji 选择器（emoji-picker-element：全量最新 emoji，启动时绑定 emoji-click）---
         let pendingPick = null;
-        let emojiCat = 0;
-
         function openEmojiPicker(onPick) {
             pendingPick = onPick;
-            document.getElementById('emojiSearch').value = '';
-            emojiCat = 0;
-            renderEmojiTabs();
-            renderEmojiGrid();
             document.getElementById('emojiModal').classList.add('show');
         }
         function closeEmoji() { document.getElementById('emojiModal').classList.remove('show'); pendingPick = null; }
         function pickEmoji(e) { if (pendingPick) pendingPick(e); closeEmoji(); }
-        function renderEmojiTabs() {
-            document.getElementById('emojiTabs').innerHTML = EMOJI_CATS.map((c, i) =>
-                `<button class="${i === emojiCat ? 'active' : ''}" onclick="selectEmojiCat(${i})">${c.icon}</button>`).join('');
-        }
-        function selectEmojiCat(i) {
-            emojiCat = i;
-            document.getElementById('emojiSearch').value = '';
-            renderEmojiTabs();
-            renderEmojiGrid();
-        }
-        function renderEmojiGrid(items) {
-            const list = items || EMOJI_CATS[emojiCat].list;
-            document.getElementById('emojiGrid').innerHTML = list.length
-                ? list.map(([e]) => `<button onclick="pickEmoji('${e}')">${e}</button>`).join('')
-                : '<div class="empty" style="grid-column:1/-1">没找到这个 emoji</div>';
-        }
-        function onEmojiSearch() {
-            const q = document.getElementById('emojiSearch').value.trim().toLowerCase();
-            if (!q) { renderEmojiGrid(); return; }
-            const hits = [];
-            EMOJI_CATS.forEach(c => c.list.forEach(it => {
-                if (it[0].includes(q) || it[1].toLowerCase().includes(q)) hits.push(it);
-            }));
-            renderEmojiGrid(hits);
-        }
 
         // --- 启动 ---
         window.addEventListener('load', () => {
             wireSpecular();
+            const picker = document.querySelector('emoji-picker');
+            if (picker) picker.addEventListener('emoji-click', ev => pickEmoji(ev.detail.unicode));
             if (!store.token) { gotoLogin(); return; }
             document.getElementById('subline').textContent = '你好，' + (store.user || '用户');
             const fd = document.getElementById('newFirstDate');
