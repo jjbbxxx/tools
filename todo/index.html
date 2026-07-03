@@ -271,8 +271,11 @@
                         </select>
                     </div>
                     <div class="col">
-                        <label class="field-lbl">截止日期（选填）</label>
-                        <input id="newDue" class="field" type="date" style="margin-bottom:0">
+                        <label class="field-lbl">截止日期</label>
+                        <input id="newDue" class="field" type="date" style="margin-bottom:6px">
+                        <label style="display:flex;align-items:center;gap:6px;color:var(--text-sub);font-size:0.82rem;cursor:pointer">
+                            <input id="newNoDate" type="checkbox" onchange="toggleNoDate()"> 无日期
+                        </label>
                     </div>
                 </div>
                 <label class="field-lbl">重复（选周期后，截止日期作为起始日；不填则从今天起）</label>
@@ -756,9 +759,10 @@
             const category = document.getElementById('newCategory').value.trim();
             const priority = Number(document.getElementById('newPriority').value);
             const recur = document.getElementById('newRecur').value;
+            const noDate = document.getElementById('newNoDate').checked;
             const dueRaw = document.getElementById('newDue').value;
-            // 选了周期但没填起始日：从今天起
-            const due = dueRaw || (recur ? todayStr() : '');
+            // 默认今天；勾了「无日期」则不设日期；选了周期则必须有起始日（默认今天）
+            const due = recur ? (dueRaw || todayStr()) : (noDate ? '' : (dueRaw || todayStr()));
             try {
                 await api('POST', '/api/todo/items', {
                     title, note, category, priority,
@@ -769,7 +773,9 @@
                 document.getElementById('newNote').value = '';
                 document.getElementById('newCategory').value = '';
                 document.getElementById('newPriority').value = '1';
-                document.getElementById('newDue').value = '';
+                document.getElementById('newNoDate').checked = false;
+                document.getElementById('newDue').disabled = false;
+                document.getElementById('newDue').value = todayStr();
                 document.getElementById('newRecur').value = '';
                 toggleAdd(false);
                 if (filter === 'done') setFilter('active');
@@ -845,6 +851,12 @@
             const open = force === undefined ? !b.classList.contains('open') : force;
             b.classList.toggle('open', open);
         }
+        function toggleNoDate() {
+            const no = document.getElementById('newNoDate').checked;
+            const due = document.getElementById('newDue');
+            due.disabled = no;
+            due.value = no ? '' : todayStr();
+        }
         let toastTimer;
         function toast(msg) {
             const t = document.getElementById('toast');
@@ -867,6 +879,7 @@
             wireSpecular();
             if (!store.token) { gotoLogin(); return; }
             document.getElementById('subline').textContent = '你好，' + (store.user || '用户');
+            document.getElementById('newDue').value = todayStr();
             load();
         });
     </script>
