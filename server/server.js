@@ -52,6 +52,19 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_activities_user ON activities(user_id);
   CREATE INDEX IF NOT EXISTS idx_events_activity ON events(activity_id, done_at);
+  CREATE TABLE IF NOT EXISTS todos (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title      TEXT NOT NULL,
+    note       TEXT NOT NULL DEFAULT '',
+    category   TEXT NOT NULL DEFAULT '',
+    priority   INTEGER NOT NULL DEFAULT 1,
+    due_at     TEXT,
+    done       INTEGER NOT NULL DEFAULT 0,
+    done_at    TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_todos_user ON todos(user_id, done);
 `);
 
 // --- 密码哈希（scrypt，无原生依赖）---
@@ -116,6 +129,9 @@ function cleanInterval(v) { if (v == null || v === '') return null; const n = Nu
 function cleanDoneAt(v) { if (v == null || v === '') return new Date().toISOString(); const t = Date.parse(v); return Number.isNaN(t) ? null : new Date(t).toISOString(); }
 function cleanNote(v) { if (v == null) return ''; return String(v).trim().slice(0, 500); }
 function cleanUsername(v) { if (typeof v !== 'string') return null; const s = v.trim(); return /^[\w一-龥.@-]{1,50}$/.test(s) ? s : null; }
+function cleanCategory(v) { if (v == null) return ''; return String(v).trim().slice(0, 30); }
+function cleanPriority(v) { if (v == null || v === '') return 1; const n = Number(v); return (n === 0 || n === 1 || n === 2) ? n : 1; }
+function cleanDue(v) { if (v == null || v === '') return null; const t = Date.parse(v); return Number.isNaN(t) ? null : new Date(t).toISOString(); }
 
 // ============ 统一账号：/api/auth ============
 app.post('/api/auth/register', wrap((req, res) => {
@@ -232,6 +248,53 @@ app.delete('/api/log/events/:id', requireAuth, wrap((req, res) => {
     'DELETE FROM events WHERE id = ? AND activity_id IN (SELECT id FROM activities WHERE user_id = ?)'
   ).run(Number(req.params.id), req.uid);
   if (info.changes === 0) return res.status(404).json({ error: '记录不存在' });
+  res.json({ ok: true });
+}));
+
+// ============ 待办清单：/api/todo ============
+app.get('/api/todo/items', requireAuth, wrap((req, res) => {
+  const rows = db.prepare(`
+    SELECT id, title, note, category, priority, due_at, done, done_at, created_at
+    FROM todos WHERE user_id = ?
+    ORDER BY done ASC, priority DESC, (due_at IS NULL) ASC, due_at ASC, created_at DESC
+  `).all(req.uid);
+  res.json(rows);
+}));
+
+app.post('/api/todo/items', requireAuth, wrap((req, res) => {
+  const title = cleanName(req.body && req.body.title);
+  if (!title) return res.status(400).json({ error: '标题必填（1-100 字）' });
+  const info = db.prepare(
+    'INSERT INTO todos (user_id, title, note, category, priority, due_at) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(req.uid, title, cleanNote(req.body.note), cleanCategory(req.body.category),
+    cleanPriority(req.body.priority), cleanDue(req.body.due_at));
+  res.status(201).json(db.prepare('SELECT * FROM todos WHERE id = ?').get(info.lastInsertRowid));
+}));
+
+app.patch('/api/todo/items/:id', requireAuth, wrap((req, res) => {
+  const id = Number(req.params.id);
+  const ex = db.prepare('SELECT * FROM todos WHERE id = ? AND user_id = ?').get(id, req.uid);
+  if (!ex) return res.status(404).json({ error: '待办不存在' });
+  const b = req.body || {};
+  const title = b.title !== undefined ? cleanName(b.title) : ex.title;
+  if (!title) return res.status(400).json({ error: '标题无效' });
+  const note = b.note !== undefined ? cleanNote(b.note) : ex.note;
+  const category = b.category !== undefined ? cleanCategory(b.category) : ex.category;
+  const priority = b.priority !== undefined ? cleanPriority(b.priority) : ex.priority;
+  const due_at = b.due_at !== undefined ? cleanDue(b.due_at) : ex.due_at;
+  let done = ex.done, done_at = ex.done_at;
+  if (b.done !== undefined) {
+    done = b.done ? 1 : 0;
+    done_at = done ? (ex.done ? ex.done_at : new Date().toISOString()) : null;
+  }
+  db.prepare(`UPDATE todos SET title = ?, note = ?, category = ?, priority = ?, due_at = ?, done = ?, done_at = ?
+    WHERE id = ? AND user_id = ?`).run(title, note, category, priority, due_at, done, done_at, id, req.uid);
+  res.json(db.prepare('SELECT * FROM todos WHERE id = ?').get(id));
+}));
+
+app.delete('/api/todo/items/:id', requireAuth, wrap((req, res) => {
+  const info = db.prepare('DELETE FROM todos WHERE id = ? AND user_id = ?').run(Number(req.params.id), req.uid);
+  if (info.changes === 0) return res.status(404).json({ error: '待办不存在' });
   res.json({ ok: true });
 }));
 

@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>待办清单</title>
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✅</text></svg>">
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        :root {
+            --text: #1d1d27;
+            --text-sub: #5b5b6b;
+            --accent: #5b7cff;
+            --danger: #ff5a6a;
+            --warn: #f0983a;
+            --radius: 26px;
+        }
+
+        html, body { margin: 0; min-height: 100%; }
+
+        body {
+            font-family: "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            color: var(--text);
+            position: relative;
+            overflow-x: hidden;
+            padding: 0 16px 80px;
+            min-height: 100vh;
+            background:
+                radial-gradient(circle at 0% 0%, rgba(200, 220, 255, 0.8), transparent 60%),
+                radial-gradient(circle at 100% 0%, rgba(255, 220, 220, 0.6), transparent 50%),
+                radial-gradient(circle at 50% 100%, rgba(220, 255, 240, 0.6), transparent 50%),
+                #F2F2F7;
+            background-attachment: fixed;
+        }
+
+        /* 液态玻璃基类（对齐 log/nutrition） */
+        .glass {
+            position: relative;
+            background: rgba(255, 255, 255, 0.55);
+            backdrop-filter: blur(40px) saturate(180%);
+            -webkit-backdrop-filter: blur(40px) saturate(180%);
+            border-radius: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-top: 1px solid rgba(255, 255, 255, 0.8);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow:
+                0 20px 40px -10px rgba(0, 0, 0, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            overflow: hidden;
+        }
+        .glass::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            pointer-events: none;
+            background:
+                radial-gradient(200px circle at var(--x, 50%) var(--y, -10%),
+                    rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 60%),
+                linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 42%);
+        }
+        @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+            .glass { background: rgba(255, 255, 255, 0.9); }
+        }
+
+        main { max-width: 620px; margin: 0 auto; }
+
+        header.top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 22px;
+            margin: 26px 0 18px;
+        }
+        header.top h1 { margin: 0; font-size: 1.5rem; letter-spacing: -0.5px; }
+        header.top .sub { font-size: 0.8rem; color: var(--text-sub); margin-top: 2px; }
+        .icon-btn {
+            border: none; background: rgba(255, 255, 255, 0.35); cursor: pointer;
+            width: 40px; height: 40px; border-radius: 14px; font-size: 1.1rem;
+            display: grid; place-items: center; backdrop-filter: blur(6px);
+        }
+        .icon-btn:active { transform: scale(0.92); }
+
+        input, button, select, textarea { font-family: inherit; font-size: 1rem; }
+        .field {
+            width: 100%; padding: 13px 15px; border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.5);
+            color: var(--text); outline: none; margin-bottom: 12px;
+        }
+        .field:focus { border-color: var(--accent); background: rgba(255, 255, 255, 0.72); }
+        select.field {
+            appearance: none; -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='%235b5b6b'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat; background-position: right 12px center; padding-right: 34px;
+        }
+        .btn {
+            border: none; border-radius: 16px; padding: 13px 18px; cursor: pointer;
+            font-weight: 600; transition: transform 0.12s, filter 0.2s;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-primary {
+            color: #fff;
+            background: linear-gradient(135deg, #6a8bff, #8a6aff);
+            box-shadow: 0 6px 18px rgba(106, 122, 255, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        }
+        .btn-ghost {
+            background: rgba(255, 255, 255, 0.4); color: var(--text);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        .btn-block { width: 100%; }
+
+        /* 筛选条 */
+        .filters { display: flex; gap: 8px; margin: 0 4px 16px; }
+        .chip {
+            border: 1px solid rgba(255, 255, 255, 0.5); cursor: pointer;
+            background: rgba(255, 255, 255, 0.4); color: var(--text-sub);
+            padding: 8px 16px; border-radius: 100px; font-size: 0.88rem; font-weight: 600;
+        }
+        .chip.active { background: linear-gradient(135deg, #6a8bff, #8a6aff); color: #fff; border-color: transparent; }
+
+        /* 新建区 */
+        section.add { padding: 18px; margin-bottom: 20px; }
+        .add-head {
+            display: flex; align-items: center; gap: 8px;
+            font-weight: 600; margin: 0 0 0 4px; font-size: 1.02rem; cursor: pointer;
+        }
+        .collapse { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+        .collapse.open { max-height: 520px; padding-top: 14px; }
+        .field-lbl { display: block; font-size: 0.78rem; color: var(--text-sub); margin: 0 0 6px 4px; }
+        .row { display: flex; gap: 10px; }
+        .row .field { margin-bottom: 0; }
+        .col { flex: 1; }
+
+        /* 待办卡片 */
+        section#list { display: flex; flex-direction: column; gap: 12px; }
+        .card { padding: 15px 16px; }
+        .card .head { display: flex; align-items: flex-start; gap: 12px; }
+        .checkbox {
+            flex: 0 0 26px; width: 26px; height: 26px; margin-top: 2px; cursor: pointer;
+            border-radius: 50%; border: 2px solid var(--accent);
+            display: grid; place-items: center; color: #fff; font-size: 0.85rem;
+            transition: background 0.15s, transform 0.1s;
+        }
+        .checkbox:active { transform: scale(0.88); }
+        .card.done .checkbox { background: var(--accent); border-color: var(--accent); }
+        .card .body { flex: 1; min-width: 0; }
+        .card .title { font-weight: 700; font-size: 1.08rem; word-break: break-word; }
+        .card.done .title { text-decoration: line-through; color: var(--text-sub); }
+        .card .note { font-size: 0.85rem; color: var(--text-sub); margin-top: 3px; word-break: break-word; }
+        .card.done { opacity: 0.6; }
+        .card .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+        .tag {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 0.75rem; padding: 4px 10px; border-radius: 100px;
+            background: rgba(255, 255, 255, 0.5); border: 1px solid rgba(255, 255, 255, 0.55);
+            color: var(--text-sub);
+        }
+        .tag.due.overdue { background: rgba(255, 90, 106, 0.14); border-color: rgba(255, 90, 106, 0.35); color: var(--danger); font-weight: 700; }
+        .tag.due.soon { background: rgba(240, 152, 58, 0.14); border-color: rgba(240, 152, 58, 0.35); color: var(--warn); font-weight: 700; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; }
+        .dot.p2 { background: var(--danger); }
+        .dot.p1 { background: var(--warn); }
+        .dot.p0 { background: #9aa4b2; }
+        .card .ops { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
+        .card .ops button {
+            border: none; cursor: pointer; width: 32px; height: 32px; border-radius: 10px;
+            font-size: 0.9rem; color: var(--text-sub); background: rgba(255, 255, 255, 0.4);
+            display: grid; place-items: center;
+        }
+        .card .ops button:active { transform: scale(0.9); }
+        .card .ops .del { color: var(--danger); }
+
+        .empty { text-align: center; color: var(--text-sub); padding: 40px 0; }
+
+        .toast {
+            position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%) translateY(20px);
+            background: rgba(30, 32, 50, 0.85); color: #fff; padding: 11px 20px; border-radius: 14px;
+            font-size: 0.9rem; opacity: 0; transition: all 0.3s; z-index: 200; pointer-events: none;
+            backdrop-filter: blur(8px);
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    </style>
+</head>
+
+<body>
+    <main>
+        <header class="top glass lit">
+            <div>
+                <h1>待办清单</h1>
+                <div class="sub" id="subline">要做的事，别丢在脑子里</div>
+            </div>
+            <button class="icon-btn" onclick="logout()" title="退出登录">⎋</button>
+        </header>
+
+        <div class="filters">
+            <button class="chip active" data-filter="active" onclick="setFilter('active')">进行中</button>
+            <button class="chip" data-filter="done" onclick="setFilter('done')">已完成</button>
+            <button class="chip" data-filter="all" onclick="setFilter('all')">全部</button>
+        </div>
+
+        <section class="add glass lit">
+            <div class="add-head" onclick="toggleAdd()">
+                <span>➕ 新建待办</span>
+            </div>
+            <div id="addBody" class="collapse">
+                <input id="newTitle" class="field" placeholder="要做什么？如 交房租 / 回复邮件">
+                <input id="newNote" class="field" placeholder="备注（选填）">
+                <input id="newCategory" class="field" placeholder="分类（选填，如 工作 / 家庭）">
+                <div class="row" style="margin-bottom:12px">
+                    <div class="col">
+                        <label class="field-lbl">优先级</label>
+                        <select id="newPriority" class="field" style="margin-bottom:0">
+                            <option value="2">高</option>
+                            <option value="1" selected>中</option>
+                            <option value="0">低</option>
+                        </select>
+                    </div>
+                    <div class="col">
+                        <label class="field-lbl">截止日期（选填）</label>
+                        <input id="newDue" class="field" type="date" style="margin-bottom:0">
+                    </div>
+                </div>
+                <button class="btn btn-primary btn-block" onclick="addTodo()">创建</button>
+            </div>
+        </section>
+
+        <section id="list"></section>
+    </main>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // --- 统一账号（同域名共享）---
+        const API = 'https://api.gimago.cn';
+        const TOKEN_KEY = 'gimago_token';
+        const USER_KEY = 'gimago_user';
+        const store = {
+            get token() { return localStorage.getItem(TOKEN_KEY) || ''; },
+            get user() { return localStorage.getItem(USER_KEY) || ''; },
+        };
+        function gotoLogin() {
+            location.href = '/login?next=' + encodeURIComponent(location.pathname);
+        }
+        function logout() {
+            localStorage.removeItem(TOKEN_KEY);
+            localStorage.removeItem(USER_KEY);
+            gotoLogin();
+        }
+
+        let todos = [];
+        let filter = 'active';   // active | done | all
+
+        // --- API 封装（所有 todo 数据走 /api/todo）---
+        async function api(method, path, body) {
+            const res = await fetch(API + path, {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer ' + store.token,
+                },
+                body: body ? JSON.stringify(body) : undefined,
+            });
+            if (res.status === 401) { logout(); throw new Error('未登录'); }
+            if (!res.ok) {
+                let msg = res.status;
+                try { msg = (await res.json()).error || msg; } catch (e) {}
+                throw new Error(msg);
+            }
+            return res.status === 204 ? null : res.json();
+        }
+
+        // --- 工具 ---
+        function esc(s) {
+            return String(s).replace(/[&<>"']/g, c =>
+                ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+        const pad2 = (x) => String(x).padStart(2, '0');
+        function todayStr() {
+            const n = new Date();
+            return n.getFullYear() + '-' + pad2(n.getMonth() + 1) + '-' + pad2(n.getDate());
+        }
+        function dateInputToISO(s) {
+            const [y, m, d] = s.split('-').map(Number);
+            return new Date(y, m - 1, d, 12, 0, 0).toISOString();
+        }
+        function isoToDateInput(iso) {
+            const d = new Date(iso);
+            return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+        }
+        // 距今天数：负=逾期，0=今天，正=还有几天
+        function dueDays(iso) {
+            const t = new Date(iso);
+            const a = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+            const n = new Date();
+            const b = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+            return Math.round((a - b) / 86400000);
+        }
+        function dueText(iso) {
+            const d = dueDays(iso);
+            if (d < 0) return '逾期 ' + (-d) + ' 天';
+            if (d === 0) return '今天到期';
+            if (d === 1) return '明天到期';
+            const t = new Date(iso);
+            return (t.getMonth() + 1) + '月' + t.getDate() + '日';
+        }
+        const PRIO_NAME = { 2: '高', 1: '中', 0: '低' };
+
+        // --- 渲染 ---
+        function visibleTodos() {
+            if (filter === 'active') return todos.filter(t => !t.done);
+            if (filter === 'done') return todos.filter(t => t.done);
+            return todos;
+        }
+        function render() {
+            const el = document.getElementById('list');
+            const list = visibleTodos();
+            if (!list.length) {
+                const msg = filter === 'done' ? '还没有已完成的待办'
+                    : filter === 'active' ? '没有进行中的待办<br>点上面「新建待办」开始吧'
+                    : '还没有待办<br>点上面「新建待办」开始吧';
+                el.innerHTML = '<div class="empty">' + msg + '</div>';
+                return;
+            }
+            el.innerHTML = list.map(t => {
+                const tags = [];
+                tags.push(`<span class="tag"><span class="dot p${t.priority}"></span>${PRIO_NAME[t.priority]}</span>`);
+                if (t.category) tags.push(`<span class="tag">🏷 ${esc(t.category)}</span>`);
+                if (t.due_at) {
+                    const d = dueDays(t.due_at);
+                    const cls = !t.done && d < 0 ? 'overdue' : !t.done && d <= 1 ? 'soon' : '';
+                    tags.push(`<span class="tag due ${cls}">🗓 ${esc(dueText(t.due_at))}</span>`);
+                }
+                return `
+                <div class="card glass lit ${t.done ? 'done' : ''}">
+                    <div class="head">
+                        <div class="checkbox" onclick="toggleDone(${t.id})" title="标记完成">${t.done ? '✓' : ''}</div>
+                        <div class="body">
+                            <div class="title">${esc(t.title)}</div>
+                            ${t.note ? `<div class="note">${esc(t.note)}</div>` : ''}
+                            <div class="tags">${tags.join('')}</div>
+                        </div>
+                        <div class="ops">
+                            <button onclick="editTodo(${t.id})" title="编辑">✎</button>
+                            <button class="del" onclick="delTodo(${t.id})" title="删除">🗑</button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+            wireSpecular();
+        }
+
+        async function load() {
+            try {
+                todos = await api('GET', '/api/todo/items');
+                render();
+            } catch (e) { /* 401 已跳登录；其它静默 */ }
+        }
+
+        // --- 操作 ---
+        async function addTodo() {
+            const title = document.getElementById('newTitle').value.trim();
+            if (!title) return toast('请填标题');
+            const note = document.getElementById('newNote').value.trim();
+            const category = document.getElementById('newCategory').value.trim();
+            const priority = Number(document.getElementById('newPriority').value);
+            const due = document.getElementById('newDue').value;
+            try {
+                await api('POST', '/api/todo/items', {
+                    title, note, category, priority,
+                    due_at: due ? dateInputToISO(due) : null,
+                });
+                document.getElementById('newTitle').value = '';
+                document.getElementById('newNote').value = '';
+                document.getElementById('newCategory').value = '';
+                document.getElementById('newPriority').value = '1';
+                document.getElementById('newDue').value = '';
+                toggleAdd(false);
+                if (filter === 'done') setFilter('active');
+                await load();
+                toast('已创建');
+            } catch (e) { toast('失败：' + e.message); }
+        }
+
+        async function toggleDone(id) {
+            const t = todos.find(x => x.id === id);
+            if (!t) return;
+            try {
+                await api('PATCH', '/api/todo/items/' + id, { done: t.done ? 0 : 1 });
+                await load();
+                toast(t.done ? '已恢复' : '完成 ✓');
+            } catch (e) { toast('失败：' + e.message); }
+        }
+
+        async function editTodo(id) {
+            const t = todos.find(x => x.id === id);
+            if (!t) return;
+            const title = prompt('编辑标题', t.title);
+            if (title === null) return;
+            const name = title.trim();
+            if (!name) return toast('标题不能为空');
+            const prio = prompt('优先级：2=高 1=中 0=低', String(t.priority));
+            if (prio === null) return;
+            const due = prompt('截止日期 YYYY-MM-DD（留空则清除）', t.due_at ? isoToDateInput(t.due_at) : '');
+            if (due === null) return;
+            const dueStr = due.trim();
+            try {
+                await api('PATCH', '/api/todo/items/' + id, {
+                    title: name,
+                    priority: Number(prio),
+                    due_at: dueStr ? dateInputToISO(dueStr) : '',
+                });
+                await load();
+                toast('已更新');
+            } catch (e) { toast('失败：' + e.message); }
+        }
+
+        async function delTodo(id) {
+            const t = todos.find(x => x.id === id);
+            if (!confirm('删除「' + (t ? t.title : '') + '」？')) return;
+            try { await api('DELETE', '/api/todo/items/' + id); await load(); toast('已删除'); }
+            catch (e) { toast('失败：' + e.message); }
+        }
+
+        // --- 杂项 UI ---
+        function setFilter(f) {
+            filter = f;
+            document.querySelectorAll('.chip').forEach(c =>
+                c.classList.toggle('active', c.dataset.filter === f));
+            render();
+        }
+        function toggleAdd(force) {
+            const b = document.getElementById('addBody');
+            const open = force === undefined ? !b.classList.contains('open') : force;
+            b.classList.toggle('open', open);
+        }
+        let toastTimer;
+        function toast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg; t.classList.add('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+        }
+        function wireSpecular() {
+            document.querySelectorAll('.glass.lit').forEach(el => {
+                el.onpointermove = (e) => {
+                    const r = el.getBoundingClientRect();
+                    el.style.setProperty('--x', (e.clientX - r.left) + 'px');
+                    el.style.setProperty('--y', (e.clientY - r.top) + 'px');
+                };
+            });
+        }
+
+        // --- 启动 ---
+        window.addEventListener('load', () => {
+            wireSpecular();
+            if (!store.token) { gotoLogin(); return; }
+            document.getElementById('subline').textContent = '你好，' + (store.user || '用户');
+            load();
+        });
+    </script>
+</body>
+
+</html>
