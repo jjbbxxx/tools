@@ -325,6 +325,39 @@
         </div>
     </div>
 
+    <!-- 编辑待办弹层（与新建同款表单）-->
+    <div id="editModal" class="overlay">
+        <div class="modal glass">
+            <h2>编辑待办</h2>
+            <input id="editTitle" class="field" placeholder="标题">
+            <input id="editNote" class="field" placeholder="备注（选填）">
+            <input id="editCategory" class="field" placeholder="分类（选填）">
+            <div class="row" style="margin-bottom:12px">
+                <div class="col">
+                    <label class="field-lbl">优先级</label>
+                    <select id="editPriority" class="field" style="margin-bottom:0">
+                        <option value="2">高</option>
+                        <option value="1">中</option>
+                        <option value="0">低</option>
+                    </select>
+                </div>
+                <div class="col">
+                    <label class="field-lbl">截止/起始日</label>
+                    <input id="editDue" class="field" type="date" style="margin-bottom:0">
+                </div>
+            </div>
+            <label class="field-lbl">重复（选周期后，日期作为起始日；不填则从今天起）</label>
+            <select id="editRecur" class="field">
+                <option value="">不重复</option>
+                <option value="weekly">每周</option>
+                <option value="monthly">每月</option>
+                <option value="yearly">每年</option>
+            </select>
+            <button class="btn btn-primary btn-block" onclick="saveEdit()">保存</button>
+            <button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="closeEdit()">取消</button>
+        </div>
+    </div>
+
     <div id="toast" class="toast"></div>
 
     <script>
@@ -755,30 +788,39 @@
             } catch (e) { toast('失败：' + e.message); }
         }
 
-        async function editTodo(id) {
+        let editingId = null;
+        function editTodo(id) {
             const t = todos.find(x => x.id === id);
             if (!t) return;
-            const title = prompt('编辑标题', t.title);
-            if (title === null) return;
-            const name = title.trim();
-            if (!name) return toast('标题不能为空');
-            const prio = prompt('优先级：2=高 1=中 0=低', String(t.priority));
-            if (prio === null) return;
-            const due = prompt('截止/起始日 YYYY-MM-DD（留空则清除）', t.due_at ? isoToDateInput(t.due_at) : '');
-            if (due === null) return;
-            const dueStr = due.trim();
-            const freqCode = { '': '0', weekly: '1', monthly: '2', yearly: '3' }[t.recur_freq] || '0';
-            const rec = prompt('重复：0=不重复 1=每周 2=每月 3=每年', freqCode);
-            if (rec === null) return;
-            const recur_freq = { '0': '', '1': 'weekly', '2': 'monthly', '3': 'yearly' }[rec.trim()] ?? t.recur_freq;
+            editingId = id;
+            document.getElementById('editTitle').value = t.title;
+            document.getElementById('editNote').value = t.note || '';
+            document.getElementById('editCategory').value = t.category || '';
+            document.getElementById('editPriority').value = String(t.priority);
+            document.getElementById('editDue').value = t.due_at ? isoToDateInput(t.due_at) : '';
+            document.getElementById('editRecur').value = t.recur_freq || '';
+            document.getElementById('editModal').classList.add('show');
+        }
+        function closeEdit() { document.getElementById('editModal').classList.remove('show'); editingId = null; }
+        async function saveEdit() {
+            if (!editingId) return;
+            const title = document.getElementById('editTitle').value.trim();
+            if (!title) return toast('标题不能为空');
+            const note = document.getElementById('editNote').value.trim();
+            const category = document.getElementById('editCategory').value.trim();
+            const priority = Number(document.getElementById('editPriority').value);
+            const recur = document.getElementById('editRecur').value;
+            const dueRaw = document.getElementById('editDue').value;
+            const due = dueRaw || (recur ? todayStr() : '');
             try {
-                await api('PATCH', '/api/todo/items/' + id, {
-                    title: name,
-                    priority: Number(prio),
-                    due_at: dueStr ? dateInputToISO(dueStr) : '',
-                    recur_freq,
+                await api('PATCH', '/api/todo/items/' + editingId, {
+                    title, note, category, priority,
+                    due_at: due ? dateInputToISO(due) : '',
+                    recur_freq: recur,
                 });
+                closeEdit();
                 await load();
+                if (openDayKey) openDay(openDayKey);
                 toast('已更新');
             } catch (e) { toast('失败：' + e.message); }
         }
