@@ -346,7 +346,10 @@
                 </div>
                 <div class="col">
                     <label class="field-lbl">截止/起始日</label>
-                    <input id="editDue" class="field" type="date" style="margin-bottom:0">
+                    <input id="editDue" class="field" type="date" style="margin-bottom:6px">
+                    <label style="display:flex;align-items:center;gap:6px;color:var(--text-sub);font-size:0.82rem;cursor:pointer">
+                        <input id="editNoDate" type="checkbox" onchange="toggleEditNoDate()"> 无日期
+                    </label>
                 </div>
             </div>
             <label class="field-lbl">重复（选周期后，日期作为起始日；不填则从今天起）</label>
@@ -805,9 +808,19 @@
             document.getElementById('editPriority').value = String(t.priority);
             document.getElementById('editDue').value = t.due_at ? isoToDateInput(t.due_at) : '';
             document.getElementById('editRecur').value = t.recur_freq || '';
+            const noDate = !t.due_at && !t.recur_freq;
+            document.getElementById('editNoDate').checked = noDate;
+            document.getElementById('editDue').disabled = noDate;
             document.getElementById('editModal').classList.add('show');
         }
         function closeEdit() { document.getElementById('editModal').classList.remove('show'); editingId = null; }
+        function toggleEditNoDate() {
+            const no = document.getElementById('editNoDate').checked;
+            const due = document.getElementById('editDue');
+            due.disabled = no;
+            if (no) due.value = '';
+            else if (!due.value) due.value = todayStr();
+        }
         async function saveEdit() {
             if (!editingId) return;
             const title = document.getElementById('editTitle').value.trim();
@@ -816,8 +829,9 @@
             const category = document.getElementById('editCategory').value.trim();
             const priority = Number(document.getElementById('editPriority').value);
             const recur = document.getElementById('editRecur').value;
+            const noDate = document.getElementById('editNoDate').checked;
             const dueRaw = document.getElementById('editDue').value;
-            const due = dueRaw || (recur ? todayStr() : '');
+            const due = recur ? (dueRaw || todayStr()) : (noDate ? '' : (dueRaw || todayStr()));
             try {
                 await api('PATCH', '/api/todo/items/' + editingId, {
                     title, note, category, priority,
