@@ -67,6 +67,23 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_todos_user ON todos(user_id, done);
 `);
 
+// 迁移：给已存在的 todos 表补周期字段；新增周期事件的「例外/完成」表
+const _todoCols = db.prepare("PRAGMA table_info(todos)").all().map((c) => c.name);
+if (!_todoCols.includes('recur_freq')) db.exec("ALTER TABLE todos ADD COLUMN recur_freq TEXT NOT NULL DEFAULT ''");
+if (!_todoCols.includes('recur_until')) db.exec("ALTER TABLE todos ADD COLUMN recur_until TEXT");
+db.exec(`
+  CREATE TABLE IF NOT EXISTS todo_occurrences (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    todo_id  INTEGER NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
+    occ_date TEXT NOT NULL,
+    done     INTEGER NOT NULL DEFAULT 0,
+    done_at  TEXT,
+    deleted  INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(todo_id, occ_date)
+  );
+  CREATE INDEX IF NOT EXISTS idx_occ_todo ON todo_occurrences(todo_id);
+`);
+
 // --- 密码哈希（scrypt，无原生依赖）---
 function hashPassword(pw) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -132,6 +149,31 @@ function cleanUsername(v) { if (typeof v !== 'string') return null; const s = v.
 function cleanCategory(v) { if (v == null) return ''; return String(v).trim().slice(0, 30); }
 function cleanPriority(v) { if (v == null || v === '') return 1; const n = Number(v); return (n === 0 || n === 1 || n === 2) ? n : 1; }
 function cleanDue(v) { if (v == null || v === '') return null; const t = Date.parse(v); return Number.isNaN(t) ? null : new Date(t).toISOString(); }
+function cleanFreq(v) { const s = (v == null ? '' : String(v)).trim(); return ['weekly', 'monthly', 'yearly'].includes(s) ? s : ''; }
+function cleanOccDate(v) {
+  if (v == null || v === '') return null;
+  const head = String(v).slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(head)) return head;
+  const t = Date.parse(v);
+  if (Number.isNaN(t)) return null;
+  const d = new Date(t);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function dateKeyToISO(k) { const [y, m, d] = k.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d, 12)).toISOString(); }
+// 周期事件某一次的状态 upsert（done / deleted）
+function upsertOccurrence(todoId, date, fields) {
+  const ex = db.prepare('SELECT * FROM todo_occurrences WHERE todo_id = ? AND occ_date = ?').get(todoId, date);
+  if (!ex) {
+    db.prepare('INSERT INTO todo_occurrences (todo_id, occ_date, done, done_at, deleted) VALUES (?, ?, ?, ?, ?)')
+      .run(todoId, date, fields.done ? 1 : 0, fields.done ? new Date().toISOString() : null, fields.deleted ? 1 : 0);
+    return;
+  }
+  const done = fields.done !== undefined ? (fields.done ? 1 : 0) : ex.done;
+  const done_at = fields.done !== undefined ? (fields.done ? (ex.done ? ex.done_at : new Date().toISOString()) : null) : ex.done_at;
+  const deleted = fields.deleted !== undefined ? (fields.deleted ? 1 : 0) : ex.deleted;
+  db.prepare('UPDATE todo_occurrences SET done = ?, done_at = ?, deleted = ? WHERE todo_id = ? AND occ_date = ?')
+    .run(done, done_at, deleted, todoId, date);
+}
 
 // ============ 统一账号：/api/auth ============
 app.post('/api/auth/register', wrap((req, res) => {
@@ -254,7 +296,7 @@ app.delete('/api/log/events/:id', requireAuth, wrap((req, res) => {
 // ============ 待办清单：/api/todo ============
 app.get('/api/todo/items', requireAuth, wrap((req, res) => {
   const rows = db.prepare(`
-    SELECT id, title, note, category, priority, due_at, done, done_at, created_at
+    SELECT id, title, note, category, priority, due_at, done, done_at, recur_freq, recur_until, created_at
     FROM todos WHERE user_id = ?
     ORDER BY done ASC, priority DESC, (due_at IS NULL) ASC, due_at ASC, created_at DESC
   `).all(req.uid);
@@ -265,9 +307,10 @@ app.post('/api/todo/items', requireAuth, wrap((req, res) => {
   const title = cleanName(req.body && req.body.title);
   if (!title) return res.status(400).json({ error: '标题必填（1-100 字）' });
   const info = db.prepare(
-    'INSERT INTO todos (user_id, title, note, category, priority, due_at) VALUES (?, ?, ?, ?, ?, ?)'
+    'INSERT INTO todos (user_id, title, note, category, priority, due_at, recur_freq, recur_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(req.uid, title, cleanNote(req.body.note), cleanCategory(req.body.category),
-    cleanPriority(req.body.priority), cleanDue(req.body.due_at));
+    cleanPriority(req.body.priority), cleanDue(req.body.due_at),
+    cleanFreq(req.body.recur_freq), cleanDue(req.body.recur_until));
   res.status(201).json(db.prepare('SELECT * FROM todos WHERE id = ?').get(info.lastInsertRowid));
 }));
 
@@ -282,20 +325,69 @@ app.patch('/api/todo/items/:id', requireAuth, wrap((req, res) => {
   const category = b.category !== undefined ? cleanCategory(b.category) : ex.category;
   const priority = b.priority !== undefined ? cleanPriority(b.priority) : ex.priority;
   const due_at = b.due_at !== undefined ? cleanDue(b.due_at) : ex.due_at;
+  const recur_freq = b.recur_freq !== undefined ? cleanFreq(b.recur_freq) : ex.recur_freq;
+  const recur_until = b.recur_until !== undefined ? cleanDue(b.recur_until) : ex.recur_until;
   let done = ex.done, done_at = ex.done_at;
   if (b.done !== undefined) {
     done = b.done ? 1 : 0;
     done_at = done ? (ex.done ? ex.done_at : new Date().toISOString()) : null;
   }
-  db.prepare(`UPDATE todos SET title = ?, note = ?, category = ?, priority = ?, due_at = ?, done = ?, done_at = ?
-    WHERE id = ? AND user_id = ?`).run(title, note, category, priority, due_at, done, done_at, id, req.uid);
+  db.prepare(`UPDATE todos SET title = ?, note = ?, category = ?, priority = ?, due_at = ?, recur_freq = ?, recur_until = ?, done = ?, done_at = ?
+    WHERE id = ? AND user_id = ?`).run(title, note, category, priority, due_at, recur_freq, recur_until, done, done_at, id, req.uid);
   res.json(db.prepare('SELECT * FROM todos WHERE id = ?').get(id));
 }));
 
-app.delete('/api/todo/items/:id', requireAuth, wrap((req, res) => {
-  const info = db.prepare('DELETE FROM todos WHERE id = ? AND user_id = ?').run(Number(req.params.id), req.uid);
-  if (info.changes === 0) return res.status(404).json({ error: '待办不存在' });
+// 周期事件全部「例外/完成」记录（前端按 todo_id+occ_date 建映射）
+app.get('/api/todo/occurrences', requireAuth, wrap((req, res) => {
+  const rows = db.prepare(`
+    SELECT o.todo_id, o.occ_date, o.done, o.done_at, o.deleted
+    FROM todo_occurrences o JOIN todos t ON t.id = o.todo_id
+    WHERE t.user_id = ?
+  `).all(req.uid);
+  res.json(rows);
+}));
+
+// 标记周期事件某一次：完成/取消完成，或仅删这一次（deleted）
+app.put('/api/todo/items/:id/occurrence', requireAuth, wrap((req, res) => {
+  const id = Number(req.params.id);
+  const own = db.prepare('SELECT id FROM todos WHERE id = ? AND user_id = ?').get(id, req.uid);
+  if (!own) return res.status(404).json({ error: '待办不存在' });
+  const date = cleanOccDate(req.body && req.body.occ_date);
+  if (!date) return res.status(400).json({ error: 'occ_date 无效' });
+  const fields = {};
+  if (req.body.done !== undefined) fields.done = !!req.body.done;
+  if (req.body.deleted !== undefined) fields.deleted = !!req.body.deleted;
+  upsertOccurrence(id, date, fields);
   res.json({ ok: true });
+}));
+
+// 删除：mode=all（默认，删事项及其所有次）/ occurrence（仅删该次，需 date）/ completed（删事项但把已完成的各次转为独立记录保留）
+app.delete('/api/todo/items/:id', requireAuth, wrap((req, res) => {
+  const id = Number(req.params.id);
+  const t = db.prepare('SELECT * FROM todos WHERE id = ? AND user_id = ?').get(id, req.uid);
+  if (!t) return res.status(404).json({ error: '待办不存在' });
+  const mode = req.query.mode || 'all';
+
+  if (mode === 'occurrence') {
+    const date = cleanOccDate(req.query.date);
+    if (!date) return res.status(400).json({ error: 'date 无效' });
+    upsertOccurrence(id, date, { deleted: true });
+    return res.json({ ok: true, mode });
+  }
+
+  if (mode === 'completed' && t.recur_freq) {
+    const tx = db.transaction(() => {
+      const comps = db.prepare('SELECT occ_date, done_at FROM todo_occurrences WHERE todo_id = ? AND done = 1 AND deleted = 0').all(id);
+      const ins = db.prepare('INSERT INTO todos (user_id, title, note, category, priority, due_at, done, done_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?)');
+      for (const c of comps) ins.run(req.uid, t.title, t.note, t.category, t.priority, dateKeyToISO(c.occ_date), c.done_at || dateKeyToISO(c.occ_date));
+      db.prepare('DELETE FROM todos WHERE id = ? AND user_id = ?').run(id, req.uid);
+    });
+    tx();
+    return res.json({ ok: true, mode });
+  }
+
+  db.prepare('DELETE FROM todos WHERE id = ? AND user_id = ?').run(id, req.uid);
+  res.json({ ok: true, mode: 'all' });
 }));
 
 // 健康检查（无需登录）

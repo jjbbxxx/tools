@@ -162,6 +162,7 @@
         }
         .tag.due.overdue { background: rgba(255, 90, 106, 0.14); border-color: rgba(255, 90, 106, 0.35); color: var(--danger); font-weight: 700; }
         .tag.due.soon { background: rgba(240, 152, 58, 0.14); border-color: rgba(240, 152, 58, 0.35); color: var(--warn); font-weight: 700; }
+        .tag.recur { background: rgba(120, 110, 255, 0.14); border-color: rgba(120, 110, 255, 0.35); color: #6a5bff; font-weight: 700; }
         .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; }
         .dot.p2 { background: var(--danger); }
         .dot.p1 { background: var(--warn); }
@@ -274,6 +275,13 @@
                         <input id="newDue" class="field" type="date" style="margin-bottom:0">
                     </div>
                 </div>
+                <label class="field-lbl">重复（选周期后，截止日期作为起始日；不填则从今天起）</label>
+                <select id="newRecur" class="field">
+                    <option value="">不重复</option>
+                    <option value="weekly">每周</option>
+                    <option value="monthly">每月</option>
+                    <option value="yearly">每年</option>
+                </select>
                 <button class="btn btn-primary btn-block" onclick="addTodo()">创建</button>
             </div>
         </section>
@@ -338,6 +346,7 @@
         }
 
         let todos = [];
+        let occMap = {};         // 'todoId|YYYY-MM-DD' -> 周期事件某次的状态行
         let filter = 'active';   // active | done | all
 
         // --- API 封装（所有 todo 数据走 /api/todo）---
@@ -394,6 +403,63 @@
             return (t.getMonth() + 1) + '月' + t.getDate() + '日';
         }
         const PRIO_NAME = { 2: '高', 1: '中', 0: '低' };
+        const FREQ_NAME = { weekly: '每周', monthly: '每月', yearly: '每年' };
+        function keyToDate(k) { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); }
+        function dstr(dt) { return dt.getFullYear() + '-' + pad2(dt.getMonth() + 1) + '-' + pad2(dt.getDate()); }
+        function keyISO(k) { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d, 12, 0, 0).toISOString(); }
+
+        // 把一个周期事件在 [fromKey, toKey] 内“应出现的日子”算出来（YYYY-MM-DD 数组）
+        function occDatesInRange(t, fromKey, toKey) {
+            if (!t.recur_freq || !t.due_at) return [];
+            const untilKey = t.recur_until ? isoToDateInput(t.recur_until) : null;
+            const from = keyToDate(fromKey), to = keyToDate(toKey);
+            let cur = keyToDate(isoToDateInput(t.due_at));
+            const out = []; let guard = 0;
+            while (guard++ < 3000) {
+                if (cur > to) break;
+                const k = dstr(cur);
+                if (untilKey && k > untilKey) break;
+                if (cur >= from) out.push(k);
+                if (t.recur_freq === 'weekly') cur.setDate(cur.getDate() + 7);
+                else if (t.recur_freq === 'monthly') cur.setMonth(cur.getMonth() + 1);
+                else if (t.recur_freq === 'yearly') cur.setFullYear(cur.getFullYear() + 1);
+                else break;
+            }
+            return out;
+        }
+        // 周期事件“下一件要做的”：最早的逾期未完成；没有则最近的将来一次
+        function nextActionable(t) {
+            const today = todayStr();
+            const fromKey = isoToDateInput(t.due_at);
+            const n = new Date();
+            const toKey = dstr(new Date(n.getFullYear() + 1, n.getMonth(), n.getDate()));
+            let overdue = null, upcoming = null;
+            for (const k of occDatesInRange(t, fromKey, toKey)) {
+                const o = occMap[t.id + '|' + k];
+                if (o && o.deleted) continue;
+                if (o && o.done) continue;
+                if (k <= today) { if (!overdue) overdue = k; }
+                else if (!upcoming) upcoming = k;
+            }
+            return overdue || upcoming || null;
+        }
+        // 展平出 [fromKey,toKey] 内的所有“实例”：一次性待办 + 周期事件的每一次
+        function instancesInRange(fromKey, toKey) {
+            const res = [];
+            todos.forEach(t => {
+                if (t.recur_freq && t.due_at) {
+                    occDatesInRange(t, fromKey, toKey).forEach(k => {
+                        const o = occMap[t.id + '|' + k];
+                        if (o && o.deleted) return;
+                        res.push({ todo: t, date: k, done: o ? !!o.done : false, recurring: true });
+                    });
+                } else if (t.due_at) {
+                    const k = isoToDateInput(t.due_at);
+                    if (k >= fromKey && k <= toKey) res.push({ todo: t, date: k, done: !!t.done, recurring: false });
+                }
+            });
+            return res;
+        }
 
         // --- 视图 / 日历状态 ---
         let view = 'list';               // list | calendar
@@ -428,9 +494,41 @@
                 </div>`;
         }
 
+        // 周期事件卡（列表里显示“下次”，勾选完成下一件）
+        function recurCardHTML(t) {
+            const next = nextActionable(t);
+            const tags = [];
+            tags.push(`<span class="tag recur">🔁 ${FREQ_NAME[t.recur_freq]}</span>`);
+            tags.push(`<span class="tag"><span class="dot p${t.priority}"></span>${PRIO_NAME[t.priority]}</span>`);
+            if (t.category) tags.push(`<span class="tag">🏷 ${esc(t.category)}</span>`);
+            if (next) {
+                const d = dueDays(keyISO(next));
+                const cls = d < 0 ? 'overdue' : d <= 1 ? 'soon' : '';
+                tags.push(`<span class="tag due ${cls}">🗓 下次 ${esc(dueText(keyISO(next)))}</span>`);
+            } else {
+                tags.push(`<span class="tag">✅ 暂无待完成</span>`);
+            }
+            return `
+                <div class="card glass lit">
+                    <div class="head">
+                        <div class="checkbox" onclick="completeNext(${t.id})" title="完成下一件"></div>
+                        <div class="body">
+                            <div class="title">${esc(t.title)}</div>
+                            ${t.note ? `<div class="note">${esc(t.note)}</div>` : ''}
+                            <div class="tags">${tags.join('')}</div>
+                        </div>
+                        <div class="ops">
+                            <button onclick="editTodo(${t.id})" title="编辑">✎</button>
+                            <button class="del" onclick="delTodo(${t.id})" title="删除">🗑</button>
+                        </div>
+                    </div>
+                </div>`;
+        }
+
         function visibleTodos() {
+            // 周期事件的 done 永远是 0，只在“进行中/全部”出现，不进“已完成”
             if (filter === 'active') return todos.filter(t => !t.done);
-            if (filter === 'done') return todos.filter(t => t.done);
+            if (filter === 'done') return todos.filter(t => t.done && !t.recur_freq);
             return todos;
         }
         function render() {
@@ -443,7 +541,7 @@
                 el.innerHTML = '<div class="empty">' + msg + '</div>';
                 return;
             }
-            el.innerHTML = list.map(cardHTML).join('');
+            el.innerHTML = list.map(t => t.recur_freq ? recurCardHTML(t) : cardHTML(t)).join('');
             wireSpecular();
         }
 
@@ -461,24 +559,22 @@
         function renderCalendar() {
             const title = document.getElementById('calTitle');
             if (title) title.textContent = calY + '年' + (calM + 1) + '月';
+            const days = new Date(calY, calM + 1, 0).getDate();
+            const firstKey = calY + '-' + pad2(calM + 1) + '-01';
+            const lastKey = calY + '-' + pad2(calM + 1) + '-' + pad2(days);
             const byDay = {};
-            todos.forEach(t => {
-                if (!t.due_at) return;
-                const k = isoToDateInput(t.due_at);
-                (byDay[k] = byDay[k] || []).push(t);
-            });
+            instancesInRange(firstKey, lastKey).forEach(i => { (byDay[i.date] = byDay[i.date] || []).push(i); });
             const wd = ['一', '二', '三', '四', '五', '六', '日'];
             let html = wd.map(w => `<div class="cal-wd">${w}</div>`).join('');
             const firstDow = (new Date(calY, calM, 1).getDay() + 6) % 7;  // 周一起头
-            const days = new Date(calY, calM + 1, 0).getDate();
             for (let i = 0; i < firstDow; i++) html += '<div class="cal-cell blank"></div>';
             const tk = todayStr();
             for (let d = 1; d <= days; d++) {
                 const k = calY + '-' + pad2(calM + 1) + '-' + pad2(d);
                 const items = byDay[k] || [];
-                const overdue = k < tk && items.some(t => !t.done);
+                const overdue = k < tk && items.some(i => !i.done);
                 const dots = items.slice(0, 6)
-                    .map(t => `<span class="dot p${t.priority} ${t.done ? 'doneDot' : ''}"></span>`).join('');
+                    .map(i => `<span class="dot p${i.todo.priority} ${i.done ? 'doneDot' : ''}"></span>`).join('');
                 const more = items.length > 6 ? `<span class="cal-more">+${items.length - 6}</span>` : '';
                 html += `<div class="cal-cell ${k === tk ? 'today' : ''} ${overdue ? 'overdue' : ''}" onclick="openDay('${k}')">
                     <span class="d">${d}</span>
@@ -507,16 +603,22 @@
             const [y, m, d] = key.split('-').map(Number);
             const wdName = ['日', '一', '二', '三', '四', '五', '六'][new Date(y, m - 1, d).getDay()];
             document.getElementById('dayTitle').textContent = `${m}月${d}日 周${wdName}`;
-            const items = todos.filter(t => t.due_at && isoToDateInput(t.due_at) === key)
-                .sort((a, b) => (a.done - b.done) || (b.priority - a.priority));
+            const items = instancesInRange(key, key)
+                .sort((a, b) => (a.done - b.done) || (b.todo.priority - a.todo.priority));
             const el = document.getElementById('dayList');
-            el.innerHTML = items.length ? items.map(t => `
-                <div class="day-row ${t.done ? 'done' : ''}">
-                    <div class="checkbox" onclick="dayToggle(${t.id})">${t.done ? '✓' : ''}</div>
+            el.innerHTML = items.length ? items.map(i => {
+                const t = i.todo;
+                const toggle = i.recurring ? `occToggle(${t.id},'${key}')` : `dayToggle(${t.id})`;
+                const del = i.recurring ? `delRecurring(${t.id},'${key}')` : `dayDelete(${t.id})`;
+                const badge = i.recurring ? `<span class="tag recur" style="margin-left:6px">🔁 ${FREQ_NAME[t.recur_freq]}</span>` : '';
+                return `
+                <div class="day-row ${i.done ? 'done' : ''}">
+                    <div class="checkbox" onclick="${toggle}">${i.done ? '✓' : ''}</div>
                     <div class="rtitle">${esc(t.title)}
-                        <span class="tag" style="margin-left:6px"><span class="dot p${t.priority}"></span>${PRIO_NAME[t.priority]}</span></div>
-                    <button class="del-link" onclick="dayDelete(${t.id})">删</button>
-                </div>`).join('') : '<div class="empty">这天还没有待办</div>';
+                        <span class="tag" style="margin-left:6px"><span class="dot p${t.priority}"></span>${PRIO_NAME[t.priority]}</span>${badge}</div>
+                    <button class="del-link" onclick="${del}">删</button>
+                </div>`;
+            }).join('') : '<div class="empty">这天还没有待办</div>';
             document.getElementById('dayTitleInput').value = '';
             document.getElementById('dayModal').classList.add('show');
         }
@@ -544,6 +646,51 @@
             } catch (e) { toast('失败：' + e.message); }
         }
 
+        // --- 周期事件：完成某次 / 完成下一件 / 三种删除 ---
+        async function occToggle(id, date) {
+            const cur = occMap[id + '|' + date];
+            const done = cur ? !cur.done : true;
+            try {
+                await api('PUT', '/api/todo/items/' + id + '/occurrence', { occ_date: date, done });
+                await load();
+                if (openDayKey) openDay(openDayKey);
+            } catch (e) { toast('失败：' + e.message); }
+        }
+        async function completeNext(id) {
+            const t = todos.find(x => x.id === id);
+            const date = t && nextActionable(t);
+            if (!date) return toast('暂无待完成的下一件');
+            try {
+                await api('PUT', '/api/todo/items/' + id + '/occurrence', { occ_date: date, done: true });
+                await load();
+                toast('完成 ✓');
+            } catch (e) { toast('失败：' + e.message); }
+        }
+        async function delRecurring(id, contextDate) {
+            const t = todos.find(x => x.id === id);
+            const ans = prompt(
+                '删除周期性事件「' + (t ? t.title : '') + '」：\n' +
+                '1 = 删除全部\n' +
+                '2 = 仅删这一次' + (contextDate ? '（' + contextDate + '）' : '（下一件）') + '\n' +
+                '3 = 删除但保留已完成的记录', '1');
+            if (ans === null) return;
+            const m = ans.trim();
+            try {
+                if (m === '2') {
+                    const date = contextDate || (t && nextActionable(t));
+                    if (!date) return toast('没有可删的这一次');
+                    await api('DELETE', '/api/todo/items/' + id + '?mode=occurrence&date=' + date);
+                } else if (m === '3') {
+                    await api('DELETE', '/api/todo/items/' + id + '?mode=completed');
+                } else {
+                    await api('DELETE', '/api/todo/items/' + id + '?mode=all');
+                }
+                await load();
+                if (openDayKey) openDay(openDayKey);
+                toast('已删除');
+            } catch (e) { toast('失败：' + e.message); }
+        }
+
         // --- 视图切换 ---
         function setView(v) {
             view = v;
@@ -557,7 +704,13 @@
 
         async function load() {
             try {
-                todos = await api('GET', '/api/todo/items');
+                const [items, occs] = await Promise.all([
+                    api('GET', '/api/todo/items'),
+                    api('GET', '/api/todo/occurrences'),
+                ]);
+                todos = items;
+                occMap = {};
+                occs.forEach(o => { occMap[o.todo_id + '|' + o.occ_date] = o; });
                 renderAll();
             } catch (e) { /* 401 已跳登录；其它静默 */ }
         }
@@ -569,17 +722,22 @@
             const note = document.getElementById('newNote').value.trim();
             const category = document.getElementById('newCategory').value.trim();
             const priority = Number(document.getElementById('newPriority').value);
-            const due = document.getElementById('newDue').value;
+            const recur = document.getElementById('newRecur').value;
+            const dueRaw = document.getElementById('newDue').value;
+            // 选了周期但没填起始日：从今天起
+            const due = dueRaw || (recur ? todayStr() : '');
             try {
                 await api('POST', '/api/todo/items', {
                     title, note, category, priority,
                     due_at: due ? dateInputToISO(due) : null,
+                    recur_freq: recur,
                 });
                 document.getElementById('newTitle').value = '';
                 document.getElementById('newNote').value = '';
                 document.getElementById('newCategory').value = '';
                 document.getElementById('newPriority').value = '1';
                 document.getElementById('newDue').value = '';
+                document.getElementById('newRecur').value = '';
                 toggleAdd(false);
                 if (filter === 'done') setFilter('active');
                 await load();
@@ -606,14 +764,19 @@
             if (!name) return toast('标题不能为空');
             const prio = prompt('优先级：2=高 1=中 0=低', String(t.priority));
             if (prio === null) return;
-            const due = prompt('截止日期 YYYY-MM-DD（留空则清除）', t.due_at ? isoToDateInput(t.due_at) : '');
+            const due = prompt('截止/起始日 YYYY-MM-DD（留空则清除）', t.due_at ? isoToDateInput(t.due_at) : '');
             if (due === null) return;
             const dueStr = due.trim();
+            const freqCode = { '': '0', weekly: '1', monthly: '2', yearly: '3' }[t.recur_freq] || '0';
+            const rec = prompt('重复：0=不重复 1=每周 2=每月 3=每年', freqCode);
+            if (rec === null) return;
+            const recur_freq = { '0': '', '1': 'weekly', '2': 'monthly', '3': 'yearly' }[rec.trim()] ?? t.recur_freq;
             try {
                 await api('PATCH', '/api/todo/items/' + id, {
                     title: name,
                     priority: Number(prio),
                     due_at: dueStr ? dateInputToISO(dueStr) : '',
+                    recur_freq,
                 });
                 await load();
                 toast('已更新');
@@ -622,6 +785,7 @@
 
         async function delTodo(id) {
             const t = todos.find(x => x.id === id);
+            if (t && t.recur_freq) return delRecurring(id, null);
             if (!confirm('删除「' + (t ? t.title : '') + '」？')) return;
             try { await api('DELETE', '/api/todo/items/' + id); await load(); toast('已删除'); }
             catch (e) { toast('失败：' + e.message); }
