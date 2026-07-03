@@ -177,6 +177,56 @@
 
         .empty { text-align: center; color: var(--text-sub); padding: 40px 0; }
 
+        /* 视图切换 */
+        .viewswitch { display: flex; gap: 8px; margin: 0 4px 14px; }
+
+        /* --- 日历 --- */
+        section.calendar { padding: 18px 18px 20px; margin-bottom: 18px; }
+        .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+        .cal-title { font-weight: 800; font-size: 1.15rem; letter-spacing: -0.3px; }
+        .cal-nav { display: flex; gap: 8px; align-items: center; }
+        .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+        .cal-wd { text-align: center; font-size: 0.7rem; font-weight: 700; color: var(--text-sub); padding-bottom: 2px; }
+        .cal-cell {
+            position: relative; min-height: 56px; overflow: hidden;
+            border-radius: 12px; padding: 4px 3px;
+            background: rgba(255, 255, 255, 0.32);
+            border: 1px solid rgba(255, 255, 255, 0.45);
+            display: flex; flex-direction: column; cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .cal-cell:active { transform: scale(0.94); }
+        .cal-cell.blank { background: transparent; border: none; cursor: default; }
+        .cal-cell .d { font-size: 0.72rem; font-weight: 700; color: var(--text-sub); }
+        .cal-cell.today { background: rgba(106, 139, 255, 0.18); border-color: rgba(106, 139, 255, 0.5); }
+        .cal-cell.today .d { color: var(--accent); }
+        .cal-cell.overdue { background: rgba(255, 90, 106, 0.12); border-color: rgba(255, 90, 106, 0.35); }
+        .cal-dots { margin-top: 3px; display: flex; flex-wrap: wrap; gap: 3px; align-content: flex-start; }
+        .cal-dots .dot { width: 7px; height: 7px; }
+        .cal-dots .dot.doneDot { opacity: 0.3; }
+        .cal-more { font-size: 0.58rem; color: var(--text-sub); }
+
+        .section-label { font-weight: 700; font-size: 0.95rem; color: var(--text-sub); margin: 0 4px 10px; }
+
+        /* --- 弹层 + 某天明细 --- */
+        .overlay {
+            position: fixed; inset: 0; z-index: 100;
+            background: rgba(20, 22, 40, 0.35);
+            backdrop-filter: blur(4px);
+            display: none; align-items: center; justify-content: center; padding: 20px;
+        }
+        .overlay.show { display: flex; }
+        .modal { width: 100%; max-width: 400px; padding: 22px; }
+        .modal h2 { margin: 0 0 12px; font-size: 1.2rem; }
+        .day-list { max-height: 50vh; overflow-y: auto; margin-bottom: 14px; display: flex; flex-direction: column; gap: 8px; }
+        .day-row { display: flex; align-items: center; gap: 10px; padding: 4px 2px; }
+        .day-row .rtitle { flex: 1; min-width: 0; word-break: break-word; }
+        .day-row.done .rtitle { text-decoration: line-through; color: var(--text-sub); }
+        .day-row.done .checkbox { background: var(--accent); }
+        .day-row .del-link { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 0.85rem; }
+        .day-add { display: flex; gap: 8px; }
+        .day-add .field { margin: 0; flex: 1; }
+
         .toast {
             position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%) translateY(20px);
             background: rgba(30, 32, 50, 0.85); color: #fff; padding: 11px 20px; border-radius: 14px;
@@ -197,10 +247,9 @@
             <button class="icon-btn" onclick="logout()" title="退出登录">⎋</button>
         </header>
 
-        <div class="filters">
-            <button class="chip active" data-filter="active" onclick="setFilter('active')">进行中</button>
-            <button class="chip" data-filter="done" onclick="setFilter('done')">已完成</button>
-            <button class="chip" data-filter="all" onclick="setFilter('all')">全部</button>
+        <div class="viewswitch">
+            <button class="chip active" data-view="list" onclick="setView('list')">📋 列表</button>
+            <button class="chip" data-view="calendar" onclick="setView('calendar')">🗓 日历</button>
         </div>
 
         <section class="add glass lit">
@@ -229,8 +278,44 @@
             </div>
         </section>
 
-        <section id="list"></section>
+        <div id="listView">
+            <div class="filters">
+                <button class="chip active" data-filter="active" onclick="setFilter('active')">进行中</button>
+                <button class="chip" data-filter="done" onclick="setFilter('done')">已完成</button>
+                <button class="chip" data-filter="all" onclick="setFilter('all')">全部</button>
+            </div>
+            <section id="list"></section>
+        </div>
+
+        <div id="calendarView" style="display:none">
+            <section class="calendar glass lit">
+                <div class="cal-head">
+                    <div class="cal-title" id="calTitle">—</div>
+                    <div class="cal-nav">
+                        <button class="icon-btn" onclick="changeMonth(-1)" title="上个月">‹</button>
+                        <button class="btn btn-ghost" style="padding:8px 12px" onclick="thisMonth()">本月</button>
+                        <button class="icon-btn" onclick="changeMonth(1)" title="下个月">›</button>
+                    </div>
+                </div>
+                <div class="cal-grid" id="calGrid"></div>
+            </section>
+            <div class="section-label">📥 无日期</div>
+            <section id="undated"></section>
+        </div>
     </main>
+
+    <!-- 某天明细弹层 -->
+    <div id="dayModal" class="overlay">
+        <div class="modal glass">
+            <h2 id="dayTitle">某天</h2>
+            <div id="dayList" class="day-list"></div>
+            <div class="day-add">
+                <input id="dayTitleInput" class="field" placeholder="给这天加一条待办…">
+                <button class="btn btn-primary" onclick="addDayTodo()">加</button>
+            </div>
+            <button class="btn btn-ghost btn-block" style="margin-top:12px" onclick="closeDay()">关闭</button>
+        </div>
+    </div>
 
     <div id="toast" class="toast"></div>
 
@@ -310,7 +395,39 @@
         }
         const PRIO_NAME = { 2: '高', 1: '中', 0: '低' };
 
-        // --- 渲染 ---
+        // --- 视图 / 日历状态 ---
+        let view = 'list';               // list | calendar
+        let calY, calM;
+        { const n = new Date(); calY = n.getFullYear(); calM = n.getMonth(); }
+        let openDayKey = null;
+
+        // --- 渲染：一张待办卡（列表 / 无日期区共用） ---
+        function cardHTML(t) {
+            const tags = [];
+            tags.push(`<span class="tag"><span class="dot p${t.priority}"></span>${PRIO_NAME[t.priority]}</span>`);
+            if (t.category) tags.push(`<span class="tag">🏷 ${esc(t.category)}</span>`);
+            if (t.due_at) {
+                const d = dueDays(t.due_at);
+                const cls = !t.done && d < 0 ? 'overdue' : !t.done && d <= 1 ? 'soon' : '';
+                tags.push(`<span class="tag due ${cls}">🗓 ${esc(dueText(t.due_at))}</span>`);
+            }
+            return `
+                <div class="card glass lit ${t.done ? 'done' : ''}">
+                    <div class="head">
+                        <div class="checkbox" onclick="toggleDone(${t.id})" title="标记完成">${t.done ? '✓' : ''}</div>
+                        <div class="body">
+                            <div class="title">${esc(t.title)}</div>
+                            ${t.note ? `<div class="note">${esc(t.note)}</div>` : ''}
+                            <div class="tags">${tags.join('')}</div>
+                        </div>
+                        <div class="ops">
+                            <button onclick="editTodo(${t.id})" title="编辑">✎</button>
+                            <button class="del" onclick="delTodo(${t.id})" title="删除">🗑</button>
+                        </div>
+                    </div>
+                </div>`;
+        }
+
         function visibleTodos() {
             if (filter === 'active') return todos.filter(t => !t.done);
             if (filter === 'done') return todos.filter(t => t.done);
@@ -326,38 +443,122 @@
                 el.innerHTML = '<div class="empty">' + msg + '</div>';
                 return;
             }
-            el.innerHTML = list.map(t => {
-                const tags = [];
-                tags.push(`<span class="tag"><span class="dot p${t.priority}"></span>${PRIO_NAME[t.priority]}</span>`);
-                if (t.category) tags.push(`<span class="tag">🏷 ${esc(t.category)}</span>`);
-                if (t.due_at) {
-                    const d = dueDays(t.due_at);
-                    const cls = !t.done && d < 0 ? 'overdue' : !t.done && d <= 1 ? 'soon' : '';
-                    tags.push(`<span class="tag due ${cls}">🗓 ${esc(dueText(t.due_at))}</span>`);
-                }
-                return `
-                <div class="card glass lit ${t.done ? 'done' : ''}">
-                    <div class="head">
-                        <div class="checkbox" onclick="toggleDone(${t.id})" title="标记完成">${t.done ? '✓' : ''}</div>
-                        <div class="body">
-                            <div class="title">${esc(t.title)}</div>
-                            ${t.note ? `<div class="note">${esc(t.note)}</div>` : ''}
-                            <div class="tags">${tags.join('')}</div>
-                        </div>
-                        <div class="ops">
-                            <button onclick="editTodo(${t.id})" title="编辑">✎</button>
-                            <button class="del" onclick="delTodo(${t.id})" title="删除">🗑</button>
-                        </div>
-                    </div>
-                </div>`;
-            }).join('');
+            el.innerHTML = list.map(cardHTML).join('');
             wireSpecular();
         }
+
+        // --- 无日期区 ---
+        function renderUndated() {
+            const el = document.getElementById('undated');
+            const list = todos.filter(t => !t.due_at);
+            el.innerHTML = list.length
+                ? list.map(cardHTML).join('')
+                : '<div class="empty">没有无日期的待办</div>';
+            wireSpecular();
+        }
+
+        // --- 日历 ---
+        function renderCalendar() {
+            const title = document.getElementById('calTitle');
+            if (title) title.textContent = calY + '年' + (calM + 1) + '月';
+            const byDay = {};
+            todos.forEach(t => {
+                if (!t.due_at) return;
+                const k = isoToDateInput(t.due_at);
+                (byDay[k] = byDay[k] || []).push(t);
+            });
+            const wd = ['一', '二', '三', '四', '五', '六', '日'];
+            let html = wd.map(w => `<div class="cal-wd">${w}</div>`).join('');
+            const firstDow = (new Date(calY, calM, 1).getDay() + 6) % 7;  // 周一起头
+            const days = new Date(calY, calM + 1, 0).getDate();
+            for (let i = 0; i < firstDow; i++) html += '<div class="cal-cell blank"></div>';
+            const tk = todayStr();
+            for (let d = 1; d <= days; d++) {
+                const k = calY + '-' + pad2(calM + 1) + '-' + pad2(d);
+                const items = byDay[k] || [];
+                const overdue = k < tk && items.some(t => !t.done);
+                const dots = items.slice(0, 6)
+                    .map(t => `<span class="dot p${t.priority} ${t.done ? 'doneDot' : ''}"></span>`).join('');
+                const more = items.length > 6 ? `<span class="cal-more">+${items.length - 6}</span>` : '';
+                html += `<div class="cal-cell ${k === tk ? 'today' : ''} ${overdue ? 'overdue' : ''}" onclick="openDay('${k}')">
+                    <span class="d">${d}</span>
+                    <span class="cal-dots">${dots}${more}</span>
+                </div>`;
+            }
+            const grid = document.getElementById('calGrid');
+            if (grid) grid.innerHTML = html;
+            wireSpecular();
+        }
+        function changeMonth(delta) {
+            calM += delta;
+            if (calM < 0) { calM = 11; calY--; }
+            else if (calM > 11) { calM = 0; calY++; }
+            renderCalendar();
+        }
+        function thisMonth() {
+            const n = new Date();
+            calY = n.getFullYear(); calM = n.getMonth();
+            renderCalendar();
+        }
+
+        // --- 某天弹层：看 / 勾 / 删 / 补记 ---
+        function openDay(key) {
+            openDayKey = key;
+            const [y, m, d] = key.split('-').map(Number);
+            const wdName = ['日', '一', '二', '三', '四', '五', '六'][new Date(y, m - 1, d).getDay()];
+            document.getElementById('dayTitle').textContent = `${m}月${d}日 周${wdName}`;
+            const items = todos.filter(t => t.due_at && isoToDateInput(t.due_at) === key)
+                .sort((a, b) => (a.done - b.done) || (b.priority - a.priority));
+            const el = document.getElementById('dayList');
+            el.innerHTML = items.length ? items.map(t => `
+                <div class="day-row ${t.done ? 'done' : ''}">
+                    <div class="checkbox" onclick="dayToggle(${t.id})">${t.done ? '✓' : ''}</div>
+                    <div class="rtitle">${esc(t.title)}
+                        <span class="tag" style="margin-left:6px"><span class="dot p${t.priority}"></span>${PRIO_NAME[t.priority]}</span></div>
+                    <button class="del-link" onclick="dayDelete(${t.id})">删</button>
+                </div>`).join('') : '<div class="empty">这天还没有待办</div>';
+            document.getElementById('dayTitleInput').value = '';
+            document.getElementById('dayModal').classList.add('show');
+        }
+        function closeDay() { document.getElementById('dayModal').classList.remove('show'); openDayKey = null; }
+        async function dayToggle(id) {
+            const t = todos.find(x => x.id === id);
+            if (!t) return;
+            try { await api('PATCH', '/api/todo/items/' + id, { done: t.done ? 0 : 1 }); await load(); if (openDayKey) openDay(openDayKey); }
+            catch (e) { toast('失败：' + e.message); }
+        }
+        async function dayDelete(id) {
+            const t = todos.find(x => x.id === id);
+            if (!confirm('删除「' + (t ? t.title : '') + '」？')) return;
+            try { await api('DELETE', '/api/todo/items/' + id); await load(); if (openDayKey) openDay(openDayKey); }
+            catch (e) { toast('失败：' + e.message); }
+        }
+        async function addDayTodo() {
+            const title = document.getElementById('dayTitleInput').value.trim();
+            if (!title) return toast('填个标题');
+            try {
+                await api('POST', '/api/todo/items', { title, priority: 1, due_at: dateInputToISO(openDayKey) });
+                await load();
+                openDay(openDayKey);
+                toast('已添加');
+            } catch (e) { toast('失败：' + e.message); }
+        }
+
+        // --- 视图切换 ---
+        function setView(v) {
+            view = v;
+            document.querySelectorAll('.chip[data-view]').forEach(c =>
+                c.classList.toggle('active', c.dataset.view === v));
+            document.getElementById('listView').style.display = v === 'list' ? '' : 'none';
+            document.getElementById('calendarView').style.display = v === 'calendar' ? '' : 'none';
+        }
+
+        function renderAll() { render(); renderCalendar(); renderUndated(); }
 
         async function load() {
             try {
                 todos = await api('GET', '/api/todo/items');
-                render();
+                renderAll();
             } catch (e) { /* 401 已跳登录；其它静默 */ }
         }
 
@@ -429,7 +630,7 @@
         // --- 杂项 UI ---
         function setFilter(f) {
             filter = f;
-            document.querySelectorAll('.chip').forEach(c =>
+            document.querySelectorAll('.chip[data-filter]').forEach(c =>
                 c.classList.toggle('active', c.dataset.filter === f));
             render();
         }
