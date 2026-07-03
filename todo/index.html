@@ -228,6 +228,15 @@
         .day-add { display: flex; gap: 8px; }
         .day-add .field { margin: 0; flex: 1; }
 
+        /* 删除浮层菜单（贴按钮弹出）*/
+        #popover { position: fixed; z-index: 300; display: none; min-width: 172px; padding: 6px; border-radius: 16px; }
+        #popover.show { display: block; }
+        .pop-title { font-size: 0.78rem; color: var(--text-sub); padding: 8px 10px 6px; }
+        .pop-item { display: block; width: 100%; text-align: left; border: none; background: transparent; cursor: pointer; padding: 10px; border-radius: 10px; font-size: 0.92rem; color: var(--text); }
+        .pop-item:hover, .pop-item:active { background: rgba(255, 255, 255, 0.55); }
+        .pop-item.danger { color: var(--danger); }
+        .pop-item.cancel { color: var(--text-sub); }
+
         .toast {
             position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%) translateY(20px);
             background: rgba(30, 32, 50, 0.85); color: #fff; padding: 11px 20px; border-radius: 14px;
@@ -363,6 +372,8 @@
             <button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="closeEdit()">取消</button>
         </div>
     </div>
+
+    <div id="popover" class="glass"></div>
 
     <div id="toast" class="toast"></div>
 
@@ -527,7 +538,7 @@
                         </div>
                         <div class="ops">
                             <button onclick="editTodo(${t.id})" title="编辑">✎</button>
-                            <button class="del" onclick="delTodo(${t.id})" title="删除">🗑</button>
+                            <button class="del" onclick="askDelete(event, ${t.id})" title="删除">🗑</button>
                         </div>
                     </div>
                 </div>`;
@@ -558,7 +569,7 @@
                         </div>
                         <div class="ops">
                             <button onclick="editTodo(${t.id})" title="编辑">✎</button>
-                            <button class="del" onclick="delTodo(${t.id})" title="删除">🗑</button>
+                            <button class="del" onclick="askDelete(event, ${t.id})" title="删除">🗑</button>
                         </div>
                     </div>
                 </div>`;
@@ -648,7 +659,7 @@
             el.innerHTML = items.length ? items.map(i => {
                 const t = i.todo;
                 const toggle = i.recurring ? `occToggle(${t.id},'${key}')` : `dayToggle(${t.id})`;
-                const del = i.recurring ? `delRecurring(${t.id},'${key}')` : `dayDelete(${t.id})`;
+                const del = `askDelete(event, ${t.id}, '${key}')`;
                 const badge = i.recurring ? `<span class="tag recur" style="margin-left:6px">🔁 ${FREQ_NAME[t.recur_freq]}</span>` : '';
                 return `
                 <div class="day-row ${i.done ? 'done' : ''}">
@@ -666,12 +677,6 @@
             const t = todos.find(x => x.id === id);
             if (!t) return;
             try { await api('PATCH', '/api/todo/items/' + id, { done: t.done ? 0 : 1 }); await load(); if (openDayKey) openDay(openDayKey); }
-            catch (e) { toast('失败：' + e.message); }
-        }
-        async function dayDelete(id) {
-            const t = todos.find(x => x.id === id);
-            if (!confirm('删除「' + (t ? t.title : '') + '」？')) return;
-            try { await api('DELETE', '/api/todo/items/' + id); await load(); if (openDayKey) openDay(openDayKey); }
             catch (e) { toast('失败：' + e.message); }
         }
         async function addDayTodo() {
@@ -705,24 +710,46 @@
                 toast('完成 ✓');
             } catch (e) { toast('失败：' + e.message); }
         }
-        async function delRecurring(id, contextDate) {
+        // --- 删除浮层菜单（贴按钮弹出，替代对话框）---
+        function askDelete(ev, id, contextDate) {
+            ev.stopPropagation();
             const t = todos.find(x => x.id === id);
-            const ans = prompt(
-                '删除周期性事件「' + (t ? t.title : '') + '」：\n' +
-                '1 = 删除全部\n' +
-                '2 = 仅删这一次' + (contextDate ? '（' + contextDate + '）' : '（下一件）') + '\n' +
-                '3 = 删除但保留已完成的记录', '1');
-            if (ans === null) return;
-            const m = ans.trim();
+            if (!t) return;
+            const dateArg = contextDate ? `'${contextDate}'` : 'null';
+            const pop = document.getElementById('popover');
+            pop.innerHTML = t.recur_freq
+                ? `<div class="pop-title">删除「${esc(t.title)}」</div>
+                   <button class="pop-item" onclick="doDelete(${id},'all')">删除全部</button>
+                   <button class="pop-item" onclick="doDelete(${id},'occurrence',${dateArg})">仅删这一次</button>
+                   <button class="pop-item" onclick="doDelete(${id},'completed')">保留已完成，删其余</button>
+                   <button class="pop-item cancel" onclick="closePopover()">取消</button>`
+                : `<div class="pop-title">删除「${esc(t.title)}」？</div>
+                   <button class="pop-item danger" onclick="doDelete(${id},'one')">确认删除</button>
+                   <button class="pop-item cancel" onclick="closePopover()">取消</button>`;
+            pop.style.visibility = 'hidden';
+            pop.classList.add('show');
+            const r = pop.getBoundingClientRect();
+            let x = ev.clientX - r.width + 16;
+            let y = ev.clientY + 10;
+            x = Math.max(8, Math.min(x, window.innerWidth - r.width - 8));
+            y = Math.min(y, window.innerHeight - r.height - 8);
+            pop.style.left = x + 'px';
+            pop.style.top = y + 'px';
+            pop.style.visibility = '';
+        }
+        function closePopover() { document.getElementById('popover').classList.remove('show'); }
+        async function doDelete(id, mode, date) {
+            closePopover();
             try {
-                if (m === '2') {
-                    const date = contextDate || (t && nextActionable(t));
-                    if (!date) return toast('没有可删的这一次');
-                    await api('DELETE', '/api/todo/items/' + id + '?mode=occurrence&date=' + date);
-                } else if (m === '3') {
-                    await api('DELETE', '/api/todo/items/' + id + '?mode=completed');
+                if (mode === 'one') {
+                    await api('DELETE', '/api/todo/items/' + id);
+                } else if (mode === 'occurrence') {
+                    const t = todos.find(x => x.id === id);
+                    const d = date || (t && nextActionable(t));
+                    if (!d) return toast('没有可删的这一次');
+                    await api('DELETE', '/api/todo/items/' + id + '?mode=occurrence&date=' + d);
                 } else {
-                    await api('DELETE', '/api/todo/items/' + id + '?mode=all');
+                    await api('DELETE', '/api/todo/items/' + id + '?mode=' + mode);
                 }
                 await load();
                 if (openDayKey) openDay(openDayKey);
@@ -845,14 +872,6 @@
             } catch (e) { toast('失败：' + e.message); }
         }
 
-        async function delTodo(id) {
-            const t = todos.find(x => x.id === id);
-            if (t && t.recur_freq) return delRecurring(id, null);
-            if (!confirm('删除「' + (t ? t.title : '') + '」？')) return;
-            try { await api('DELETE', '/api/todo/items/' + id); await load(); toast('已删除'); }
-            catch (e) { toast('失败：' + e.message); }
-        }
-
         // --- 杂项 UI ---
         function setFilter(f) {
             filter = f;
@@ -891,6 +910,11 @@
         // --- 启动 ---
         window.addEventListener('load', () => {
             wireSpecular();
+            document.addEventListener('click', (e) => {
+                const p = document.getElementById('popover');
+                if (p.classList.contains('show') && !p.contains(e.target)) closePopover();
+            });
+            window.addEventListener('scroll', closePopover, true);
             if (!store.token) { gotoLogin(); return; }
             document.getElementById('subline').textContent = '你好，' + (store.user || '用户');
             document.getElementById('newDue').value = todayStr();
