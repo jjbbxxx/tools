@@ -25,6 +25,9 @@ if (!JWT_SECRET || JWT_SECRET.length < 16) {
 // --- 数据库 ---
 const dataDir = path.join(__dirname, 'data');
 fs.mkdirSync(dataDir, { recursive: true });
+// 菜谱封面照片落盘目录（server/data/ 已 gitignore）
+const imagesDir = path.join(dataDir, 'recipe_images');
+fs.mkdirSync(imagesDir, { recursive: true });
 const db = new Database(path.join(dataDir, 'data.db'));
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
@@ -84,6 +87,27 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_occ_todo ON todo_occurrences(todo_id);
 `);
 
+// 菜谱：食材/步骤/标签以 JSON 字符串存（有序短字符串数组）；照片只存相对路径
+db.exec(`
+  CREATE TABLE IF NOT EXISTS recipes (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title        TEXT NOT NULL,
+    emoji        TEXT NOT NULL DEFAULT '',
+    category     TEXT NOT NULL DEFAULT '',
+    cook_minutes INTEGER,
+    servings     INTEGER,
+    difficulty   INTEGER NOT NULL DEFAULT 0,
+    tags         TEXT NOT NULL DEFAULT '[]',
+    ingredients  TEXT NOT NULL DEFAULT '[]',
+    steps        TEXT NOT NULL DEFAULT '[]',
+    notes        TEXT NOT NULL DEFAULT '',
+    photo        TEXT NOT NULL DEFAULT '',
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_recipes_user ON recipes(user_id, created_at);
+`);
+
 // --- 密码哈希（scrypt，无原生依赖）---
 function hashPassword(pw) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -123,7 +147,12 @@ function verifyTokenStr(token) {
 // --- 应用 ---
 const app = express();
 app.disable('x-powered-by');
-app.use(express.json({ limit: '64kb' }));
+// 全局小 body 解析；菜谱图片上传走各自的 8mb 解析器，这里必须跳过，否则大 body 会在此处 413
+const jsonSmall = express.json({ limit: '64kb' });
+app.use((req, res, next) => {
+  if (req.method === 'POST' && req.path === '/api/recipe/upload') return next();
+  return jsonSmall(req, res, next);
+});
 
 app.use((req, res, next) => {
   res.set('Access-Control-Allow-Origin', ALLOW_ORIGIN);
@@ -150,6 +179,25 @@ function cleanCategory(v) { if (v == null) return ''; return String(v).trim().sl
 function cleanPriority(v) { if (v == null || v === '') return 1; const n = Number(v); return (n === 0 || n === 1 || n === 2) ? n : 1; }
 function cleanDue(v) { if (v == null || v === '') return null; const t = Date.parse(v); return Number.isNaN(t) ? null : new Date(t).toISOString(); }
 function cleanFreq(v) { const s = (v == null ? '' : String(v)).trim(); return ['weekly', 'monthly', 'yearly'].includes(s) ? s : ''; }
+// 菜谱：正整数或 null / 难度 0-2 / 短字符串数组转 JSON / 相对图片路径
+function cleanIntNullable(v, max) { if (v == null || v === '') return null; const n = Number(v); return Number.isInteger(n) && n > 0 && n <= max ? n : null; }
+function cleanDifficulty(v) { const n = Number(v); return (n === 0 || n === 1 || n === 2) ? n : 0; }
+function cleanStringList(v, maxItems, maxLen) {
+  if (!Array.isArray(v)) return '[]';
+  const out = v.map((x) => (x == null ? '' : String(x).trim().slice(0, maxLen))).filter((s) => s.length > 0).slice(0, maxItems);
+  return JSON.stringify(out);
+}
+function cleanPhotoPath(v) { const s = String(v == null ? '' : v).trim(); return /^\/recipe-images\/[A-Za-z0-9_.-]+$/.test(s) ? s : ''; }
+function recipeOut(r) {
+  return { ...r, tags: JSON.parse(r.tags || '[]'), ingredients: JSON.parse(r.ingredients || '[]'), steps: JSON.parse(r.steps || '[]') };
+}
+// 删除菜谱照片文件（防路径穿越）
+function unlinkPhoto(p) {
+  if (!p) return;
+  const full = path.join(imagesDir, path.basename(p));
+  if (!full.startsWith(imagesDir)) return;
+  fs.unlink(full, () => {});
+}
 function cleanOccDate(v) {
   if (v == null || v === '') return null;
   const head = String(v).slice(0, 10);
@@ -389,6 +437,82 @@ app.delete('/api/todo/items/:id', requireAuth, wrap((req, res) => {
   db.prepare('DELETE FROM todos WHERE id = ? AND user_id = ?').run(id, req.uid);
   res.json({ ok: true, mode: 'all' });
 }));
+
+// ============ 菜谱：/api/recipe ============
+app.get('/api/recipe/items', requireAuth, wrap((req, res) => {
+  const rows = db.prepare('SELECT * FROM recipes WHERE user_id = ? ORDER BY created_at DESC').all(req.uid);
+  res.json(rows.map(recipeOut));
+}));
+
+app.post('/api/recipe/items', requireAuth, wrap((req, res) => {
+  const b = req.body || {};
+  const title = cleanName(b.title);
+  if (!title) return res.status(400).json({ error: '菜名必填（1-100 字）' });
+  const info = db.prepare(`INSERT INTO recipes
+    (user_id, title, emoji, category, cook_minutes, servings, difficulty, tags, ingredients, steps, notes, photo)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    req.uid, title, cleanEmoji(b.emoji), cleanCategory(b.category),
+    cleanIntNullable(b.cook_minutes, 100000), cleanIntNullable(b.servings, 999), cleanDifficulty(b.difficulty),
+    cleanStringList(b.tags, 20, 30), cleanStringList(b.ingredients, 60, 200), cleanStringList(b.steps, 60, 500),
+    cleanNote(b.notes), cleanPhotoPath(b.photo));
+  res.status(201).json(recipeOut(db.prepare('SELECT * FROM recipes WHERE id = ?').get(info.lastInsertRowid)));
+}));
+
+app.patch('/api/recipe/items/:id', requireAuth, wrap((req, res) => {
+  const id = Number(req.params.id);
+  const ex = db.prepare('SELECT * FROM recipes WHERE id = ? AND user_id = ?').get(id, req.uid);
+  if (!ex) return res.status(404).json({ error: '菜谱不存在' });
+  const b = req.body || {};
+  const title = b.title !== undefined ? cleanName(b.title) : ex.title;
+  if (!title) return res.status(400).json({ error: '菜名无效' });
+  const emoji = b.emoji !== undefined ? cleanEmoji(b.emoji) : ex.emoji;
+  const category = b.category !== undefined ? cleanCategory(b.category) : ex.category;
+  const cook = b.cook_minutes !== undefined ? cleanIntNullable(b.cook_minutes, 100000) : ex.cook_minutes;
+  const servings = b.servings !== undefined ? cleanIntNullable(b.servings, 999) : ex.servings;
+  const difficulty = b.difficulty !== undefined ? cleanDifficulty(b.difficulty) : ex.difficulty;
+  const tags = b.tags !== undefined ? cleanStringList(b.tags, 20, 30) : ex.tags;
+  const ingredients = b.ingredients !== undefined ? cleanStringList(b.ingredients, 60, 200) : ex.ingredients;
+  const steps = b.steps !== undefined ? cleanStringList(b.steps, 60, 500) : ex.steps;
+  const notes = b.notes !== undefined ? cleanNote(b.notes) : ex.notes;
+  let photo = ex.photo;
+  if (b.photo !== undefined) {
+    photo = cleanPhotoPath(b.photo);
+    if (ex.photo && ex.photo !== photo) unlinkPhoto(ex.photo);
+  }
+  db.prepare(`UPDATE recipes SET title = ?, emoji = ?, category = ?, cook_minutes = ?, servings = ?, difficulty = ?,
+    tags = ?, ingredients = ?, steps = ?, notes = ?, photo = ? WHERE id = ? AND user_id = ?`).run(
+    title, emoji, category, cook, servings, difficulty, tags, ingredients, steps, notes, photo, id, req.uid);
+  res.json(recipeOut(db.prepare('SELECT * FROM recipes WHERE id = ?').get(id)));
+}));
+
+app.delete('/api/recipe/items/:id', requireAuth, wrap((req, res) => {
+  const id = Number(req.params.id);
+  const ex = db.prepare('SELECT * FROM recipes WHERE id = ? AND user_id = ?').get(id, req.uid);
+  if (!ex) return res.status(404).json({ error: '菜谱不存在' });
+  unlinkPhoto(ex.photo);
+  db.prepare('DELETE FROM recipes WHERE id = ? AND user_id = ?').run(id, req.uid);
+  res.json({ ok: true });
+}));
+
+// 封面照片上传：前端已 canvas 压缩为 base64；本路由自带 8mb 解析器（全局 64kb 已跳过本路径）
+app.post('/api/recipe/upload', requireAuth, express.json({ limit: '8mb' }), wrap((req, res) => {
+  const { data, mime } = req.body || {};
+  const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[mime];
+  if (!ext || typeof data !== 'string') return res.status(400).json({ error: '图片格式不支持' });
+  let buf;
+  try { buf = Buffer.from(data, 'base64'); } catch (e) { return res.status(400).json({ error: '图片解码失败' }); }
+  if (buf.length < 100 || buf.length > 5 * 1024 * 1024) return res.status(400).json({ error: '图片大小不合法' });
+  const okJpeg = buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF;
+  const okPng = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47;
+  const okWebp = buf.slice(0, 4).toString('ascii') === 'RIFF' && buf.slice(8, 12).toString('ascii') === 'WEBP';
+  if (!(okJpeg || okPng || okWebp)) return res.status(400).json({ error: '图片内容无效' });
+  const name = `${req.uid}_${crypto.randomBytes(8).toString('hex')}.${ext}`;
+  fs.writeFileSync(path.join(imagesDir, name), buf);
+  res.status(201).json({ path: '/recipe-images/' + name });
+}));
+
+// 菜谱封面静态托管（公开：<img> 无法带 Authorization 头）
+app.use('/recipe-images', express.static(imagesDir, { fallthrough: false, maxAge: '7d' }));
 
 // 健康检查（无需登录）
 app.get('/health', (req, res) => res.json({ ok: true }));
