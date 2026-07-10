@@ -264,18 +264,6 @@
             color: var(--green);
             font-size: 3.5rem;
         }
-        .difficulty-badge {
-            position: absolute; top: 10px; right: 10px;
-            padding: 5px 9px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.92);
-            color: var(--ink);
-            font-size: 0.7rem;
-            font-weight: 800;
-            box-shadow: 0 2px 8px rgba(31, 40, 33, 0.1);
-        }
-        .difficulty-badge.diff-1 { color: var(--gold); }
-        .difficulty-badge.diff-2 { color: var(--danger); }
         .rbody { padding: 15px 16px 17px; }
         .card-category {
             min-height: 18px;
@@ -448,6 +436,28 @@
         }
         .add-row:hover { background: rgba(47, 107, 79, 0.08); }
 
+        .quick-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+            min-height: 0;
+            margin: -5px 0 13px;
+        }
+        .quick-options[hidden] { display: none; }
+        .quick-choice {
+            min-height: 29px;
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            border-radius: 999px;
+            padding: 5px 10px;
+            background: rgba(255, 255, 255, 0.32);
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 0.76rem;
+            font-weight: 700;
+        }
+        .quick-choice:hover { color: var(--green); background: rgba(255, 255, 255, 0.6); }
+        .quick-choice.active { border-color: rgba(47, 107, 79, 0.35); background: rgba(47, 107, 79, 0.13); color: var(--green); }
+
         .step-editor { margin-bottom: 8px; }
         .step-edit-row {
             position: relative;
@@ -577,7 +587,6 @@
             .recipe-grid { grid-template-columns: 1fr; }
             .rcard { display: grid; grid-template-columns: 128px minmax(0, 1fr); min-height: 128px; }
             .cover-wrap, .rcard .cover { height: 100%; min-height: 128px; aspect-ratio: auto; }
-            .difficulty-badge { top: 8px; right: 8px; }
             .rbody { display: flex; flex-direction: column; justify-content: center; }
             .row { flex-direction: column; gap: 0; }
             .ing-list { grid-template-columns: 1fr; }
@@ -664,21 +673,9 @@
                         </div>
                     </div>
                     <label class="field-lbl" for="fCategory">分类</label>
-                    <input id="fCategory" class="field" placeholder="选填，如 家常菜 / 汤 / 甜点" maxlength="30">
-                    <div class="row">
-                        <div class="col">
-                            <label class="field-lbl" for="fServings">份量（人数）</label>
-                            <input id="fServings" class="field" type="number" min="1" placeholder="选填">
-                        </div>
-                        <div class="col">
-                            <label class="field-lbl" for="fDifficulty">难度</label>
-                            <select id="fDifficulty" class="field">
-                                <option value="0">简单</option>
-                                <option value="1">中等</option>
-                                <option value="2">困难</option>
-                            </select>
-                        </div>
-                    </div>
+                    <input id="fCategory" class="field" placeholder="选填，如 家常菜 / 汤 / 甜点" maxlength="30"
+                        oninput="renderQuickChoices()">
+                    <div id="fCategoryChoices" class="quick-options" aria-label="已有分类" hidden></div>
                 </section>
 
                 <section class="form-section">
@@ -697,6 +694,7 @@
 
                 <section class="form-section">
                     <h3 class="section-heading">标签</h3>
+                    <div id="fTagChoices" class="quick-options" aria-label="已有标签" hidden></div>
                     <div id="fTags" class="list-editor"></div>
                 </section>
 
@@ -757,8 +755,6 @@
             localStorage.removeItem(USER_KEY);
             gotoLogin();
         }
-
-        const DIFF = ['简单', '中等', '困难'];
 
         let recipes = [];
         let catFilter = '';       // '' = 全部
@@ -853,10 +849,10 @@
             return list.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
         }
 
-        function metaTags(r) {
+        function recipeMeta(r) {
             const tags = [];
-            if (r.servings) tags.push(`<span class="meta-item">${r.servings} 人份</span>`);
-            tags.push(`<span class="meta-item">${DIFF[r.difficulty] || '简单'}</span>`);
+            if ((r.steps || []).length) tags.push(`<span class="meta-item">${r.steps.length} 个步骤</span>`);
+            if ((r.ingredients || []).length) tags.push(`<span class="meta-item">${r.ingredients.length} 种食材</span>`);
             return tags;
         }
 
@@ -864,16 +860,12 @@
             const cover = r.photo
                 ? `<img class="cover" src="${API + r.photo}" loading="lazy" alt="${esc(r.title)}">`
                 : `<div class="cover ph">${esc(r.emoji || '🍽')}</div>`;
-            const difficulty = Number(r.difficulty) || 0;
-            const cardMeta = [];
-            if ((r.steps || []).length) cardMeta.push(`<span class="meta-item">${r.steps.length} 个步骤</span>`);
-            if (r.servings) cardMeta.push(`<span class="meta-item">${r.servings} 人份</span>`);
+            const cardMeta = recipeMeta(r);
             return `
                 <article class="rcard glass" data-recipe-id="${Number(r.id)}" role="button" tabindex="0"
                     aria-label="查看菜谱：${esc(r.title)}">
                     <div class="cover-wrap">
                         ${cover}
-                        <span class="difficulty-badge diff-${difficulty}">${DIFF[difficulty] || '简单'}</span>
                     </div>
                     <div class="rbody">
                         <div class="card-category">${esc(r.category || '未分类')}</div>
@@ -933,10 +925,66 @@
             const inputs = el.querySelectorAll('.list-row .field');
             inputs[inputs.length - 1].focus();
         }
-        function removeRow(btn) { btn.closest('.list-row').remove(); }
+        function removeRow(btn) {
+            const wasTag = btn.closest('#fTags');
+            btn.closest('.list-row').remove();
+            if (wasTag) renderQuickChoices();
+        }
         function collectList(containerId) {
             return [...document.querySelectorAll('#' + containerId + ' .list-row .field')]
                 .map(i => i.value.trim()).filter(Boolean);
+        }
+
+        // --- 已有分类 / 标签快捷选择 ---
+        function uniqueRecipeValues(key) {
+            const values = key === 'category'
+                ? recipes.map(recipe => recipe.category)
+                : recipes.flatMap(recipe => recipe.tags || []);
+            return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))]
+                .sort((a, b) => a.localeCompare(b, 'zh-CN'));
+        }
+        function renderQuickChoices() {
+            const category = document.getElementById('fCategory').value.trim();
+            const tags = collectList('fTags');
+            renderQuickChoiceList('fCategoryChoices', uniqueRecipeValues('category'), category, chooseCategory);
+            renderQuickChoiceList('fTagChoices', uniqueRecipeValues('tag'), tags, addExistingTag);
+        }
+        function renderQuickChoiceList(id, values, selected, onChoose) {
+            const el = document.getElementById(id);
+            el.replaceChildren();
+            el.hidden = values.length === 0;
+            values.forEach(value => {
+                const button = document.createElement('button');
+                const active = Array.isArray(selected) ? selected.includes(value) : selected === value;
+                button.type = 'button';
+                button.className = 'quick-choice' + (active ? ' active' : '');
+                button.textContent = value;
+                button.setAttribute('aria-pressed', active ? 'true' : 'false');
+                button.addEventListener('click', () => onChoose(value));
+                el.appendChild(button);
+            });
+        }
+        function chooseCategory(value) {
+            document.getElementById('fCategory').value = value;
+            renderQuickChoices();
+        }
+        function addExistingTag(value) {
+            const inputs = [...document.querySelectorAll('#fTags .list-row .field')];
+            const existing = inputs.find(input => input.value.trim() === value);
+            if (existing) {
+                const rows = document.querySelectorAll('#fTags .list-row');
+                if (rows.length === 1) existing.value = '';
+                else existing.closest('.list-row').remove();
+                renderQuickChoices();
+                return;
+            }
+            const empty = inputs.find(input => !input.value.trim());
+            if (empty) empty.value = value;
+            else {
+                const editor = document.getElementById('fTags');
+                editor.querySelector('.add-row').insertAdjacentHTML('beforebegin', rowHTML(value));
+            }
+            renderQuickChoices();
         }
 
         // --- 分步编辑器 ---
@@ -1041,13 +1089,12 @@
             document.getElementById('fTitle').value = '';
             document.getElementById('fEmoji').value = '';
             document.getElementById('fCategory').value = '';
-            document.getElementById('fServings').value = '';
-            document.getElementById('fDifficulty').value = '0';
             document.getElementById('fNotes').value = '';
             removePhoto();
             renderList('fTags', []);
             renderList('fIngredients', []);
             renderSteps([]);
+            renderQuickChoices();
             setModal('formModal', true);
             setTimeout(() => document.getElementById('fTitle').focus(), 0);
         }
@@ -1059,13 +1106,12 @@
             document.getElementById('fTitle').value = r.title;
             document.getElementById('fEmoji').value = r.emoji || '';
             document.getElementById('fCategory').value = r.category || '';
-            document.getElementById('fServings').value = r.servings || '';
-            document.getElementById('fDifficulty').value = String(r.difficulty || 0);
             document.getElementById('fNotes').value = r.notes || '';
             if (r.photo) showPreview(API + r.photo); else removePhoto();
             renderList('fTags', r.tags);
             renderList('fIngredients', r.ingredients);
             renderSteps(r.steps);
+            renderQuickChoices();
             closeDetail();
             setModal('formModal', true);
             setTimeout(() => document.getElementById('fTitle').focus(), 0);
@@ -1079,7 +1125,6 @@
             if (isSaving) return;
             const title = document.getElementById('fTitle').value.trim();
             if (!title) return toast('请填菜名');
-            const servings = document.getElementById('fServings').value;
             const wasEditing = editingId !== null;
             const saveBtn = document.getElementById('saveBtn');
             isSaving = true;
@@ -1096,8 +1141,6 @@
                     title,
                     emoji: document.getElementById('fEmoji').value.trim(),
                     category: document.getElementById('fCategory').value.trim(),
-                    servings: servings ? Number(servings) : null,
-                    difficulty: Number(document.getElementById('fDifficulty').value),
                     tags: collectList('fTags'),
                     ingredients: collectList('fIngredients'),
                     steps: collectSteps(),
@@ -1125,7 +1168,7 @@
             if (!r) return;
             const photo = r.photo ? `<img class="detail-photo" src="${API + r.photo}" alt="${esc(r.title)}">` : '';
             const tags = (r.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
-            const meta = metaTags(r);
+            const meta = recipeMeta(r);
             const ings = (r.ingredients || []).length
                 ? `<section class="detail-section"><h3 class="sec-label">食材</h3><ul class="ing-list">${r.ingredients.map(i => `<li>${esc(i)}</li>`).join('')}</ul></section>` : '';
             const steps = (r.steps || []).length
