@@ -3,8 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>菜谱</title>
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍳</text></svg>">
@@ -12,306 +11,656 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
         :root {
-            --text: #1d1d27;
-            --text-sub: #5b5b6b;
-            --accent: #5b7cff;
-            --danger: #ff5a6a;
-            --warn: #f0983a;
-            --radius: 26px;
+            --ink: #20231f;
+            --muted: #6e746d;
+            --line: #dfe3dd;
+            --canvas: #f4f6f3;
+            --surface: #ffffff;
+            --accent: #ce4935;
+            --accent-dark: #a93625;
+            --green: #2f6b4f;
+            --gold: #b87619;
+            --danger: #b83232;
+            --shadow: 0 12px 32px rgba(31, 40, 33, 0.08);
+            --radius-panel: 24px;
+            --radius-card: 22px;
+            --radius-control: 14px;
+            --radius-modal: 26px;
         }
 
         html, body { margin: 0; min-height: 100%; }
-
         body {
-            font-family: "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-            color: var(--text);
-            position: relative;
-            overflow-x: hidden;
-            padding: 0 16px 80px;
             min-height: 100vh;
+            padding: 0 24px calc(72px + env(safe-area-inset-bottom));
             background:
-                radial-gradient(circle at 0% 0%, rgba(200, 220, 255, 0.8), transparent 60%),
-                radial-gradient(circle at 100% 0%, rgba(255, 220, 220, 0.6), transparent 50%),
-                radial-gradient(circle at 50% 100%, rgba(220, 255, 240, 0.6), transparent 50%),
-                #F2F2F7;
+                linear-gradient(135deg, rgba(195, 225, 211, 0.92) 0%, rgba(195, 225, 211, 0) 38%),
+                linear-gradient(225deg, rgba(242, 205, 202, 0.82) 0%, rgba(242, 205, 202, 0) 42%),
+                linear-gradient(18deg, rgba(218, 226, 244, 0.86) 0%, rgba(218, 226, 244, 0) 48%),
+                #edf1ef;
             background-attachment: fixed;
+            color: var(--ink);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
         }
+        body.modal-open { overflow: hidden; }
+        button, input, select, textarea { font: inherit; }
+        button { color: inherit; }
+        button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible,
+        [role="button"]:focus-visible { outline: 3px solid rgba(206, 73, 53, 0.24); outline-offset: 2px; }
 
-        /* 液态玻璃基类（对齐 todo/log/nutrition） */
+        main { width: min(1120px, 100%); margin: 0 auto; }
+
         .glass {
             position: relative;
-            background: rgba(255, 255, 255, 0.55);
-            backdrop-filter: blur(40px) saturate(180%);
-            -webkit-backdrop-filter: blur(40px) saturate(180%);
-            border-radius: 28px;
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            border-top: 1px solid rgba(255, 255, 255, 0.8);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-            box-shadow:
-                0 20px 40px -10px rgba(0, 0, 0, 0.08),
-                inset 0 1px 0 rgba(255, 255, 255, 0.6);
             overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.62);
+            background: rgba(255, 255, 255, 0.4);
+            box-shadow:
+                0 14px 38px rgba(40, 52, 44, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 0.82),
+                inset 0 -1px 0 rgba(255, 255, 255, 0.22);
+            backdrop-filter: blur(22px) saturate(155%);
+            -webkit-backdrop-filter: blur(22px) saturate(155%);
         }
         .glass::before {
             content: "";
             position: absolute;
             inset: 0;
-            border-radius: inherit;
+            z-index: 0;
             pointer-events: none;
-            background:
-                radial-gradient(200px circle at var(--x, 50%) var(--y, -10%),
-                    rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 60%),
-                linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 42%);
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 42%);
         }
+        .glass > * { position: relative; z-index: 1; }
         @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
             .glass { background: rgba(255, 255, 255, 0.9); }
         }
 
-        main { max-width: 720px; margin: 0 auto; }
-
-        header.top {
+        .top {
+            min-height: 118px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 18px 22px;
-            margin: 26px 0 18px;
+            gap: 24px;
+            margin: 22px 0 0;
+            padding: 0 20px;
+            border-radius: var(--radius-panel);
         }
-        header.top h1 { margin: 0; font-size: 1.5rem; letter-spacing: -0.5px; }
-        header.top .sub { font-size: 0.8rem; color: var(--text-sub); margin-top: 2px; }
-        .icon-btn {
-            border: none; background: rgba(255, 255, 255, 0.35); cursor: pointer;
-            width: 40px; height: 40px; border-radius: 14px; font-size: 1.1rem;
-            display: grid; place-items: center; backdrop-filter: blur(6px);
-        }
-        .icon-btn:active { transform: scale(0.92); }
-
-        input, button, select, textarea { font-family: inherit; font-size: 1rem; }
-        .field {
-            width: 100%; padding: 13px 15px; border-radius: 14px;
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            background: rgba(255, 255, 255, 0.5);
-            color: var(--text); outline: none; margin-bottom: 12px;
-        }
-        .field:focus { border-color: var(--accent); background: rgba(255, 255, 255, 0.72); }
-        textarea.field { resize: vertical; min-height: 66px; }
-        select.field {
-            appearance: none; -webkit-appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='%235b5b6b'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
-            background-repeat: no-repeat; background-position: right 12px center; padding-right: 34px;
-        }
-        .btn {
-            border: none; border-radius: 16px; padding: 13px 18px; cursor: pointer;
-            font-weight: 600; transition: transform 0.12s, filter 0.2s;
-        }
-        .btn:active { transform: scale(0.95); }
-        .btn-primary {
+        .brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+        .brand-mark {
+            width: 48px; height: 48px; flex: 0 0 48px;
+            display: grid; place-items: center;
+            border-radius: 15px;
+            background: var(--accent);
             color: #fff;
-            background: linear-gradient(135deg, #6a8bff, #8a6aff);
-            box-shadow: 0 6px 18px rgba(106, 122, 255, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+            font-size: 1.55rem;
+            box-shadow: 0 7px 18px rgba(206, 73, 53, 0.2);
         }
-        .btn-ghost {
-            background: rgba(255, 255, 255, 0.4); color: var(--text);
-            border: 1px solid rgba(255, 255, 255, 0.5);
+        .eyebrow {
+            margin: 0 0 3px;
+            color: var(--green);
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
         }
-        .btn-danger { color: var(--danger); background: rgba(255, 90, 106, 0.12); border: 1px solid rgba(255, 90, 106, 0.3); }
+        .top h1 { margin: 0; font-size: 1.8rem; line-height: 1.1; }
+        .top .sub { margin-top: 5px; color: var(--muted); font-size: 0.88rem; }
+        .header-actions { display: flex; align-items: center; gap: 10px; }
+        .user-label {
+            max-width: 180px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--muted);
+            font-size: 0.84rem;
+        }
+        .icon-btn {
+            width: 42px; height: 42px;
+            display: grid; place-items: center;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-control);
+            background: rgba(255, 255, 255, 0.42);
+            cursor: pointer;
+            font-size: 1.05rem;
+            transition: border-color 0.16s, transform 0.16s, box-shadow 0.16s;
+        }
+        .icon-btn:hover { border-color: #bbc2ba; box-shadow: 0 4px 12px rgba(31, 40, 33, 0.07); }
+        .icon-btn:active { transform: scale(0.95); }
+
+        .toolbar {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) 170px auto;
+            gap: 10px;
+            align-items: center;
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: var(--radius-panel);
+        }
+        .search-wrap { position: relative; min-width: 0; }
+        .search-icon {
+            position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+            color: var(--muted); pointer-events: none; font-size: 1.1rem;
+        }
+        .field, .sort-select {
+            width: 100%;
+            min-height: 46px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-control);
+            background: rgba(255, 255, 255, 0.54);
+            color: var(--ink);
+            outline: none;
+            transition: border-color 0.16s, box-shadow 0.16s;
+        }
+        .field { padding: 11px 13px; margin-bottom: 13px; }
+        .search-wrap .field { margin: 0; padding-left: 42px; }
+        .field:focus, .sort-select:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(206, 73, 53, 0.11);
+        }
+        textarea.field { min-height: 94px; resize: vertical; line-height: 1.55; }
+        .sort-select {
+            appearance: none;
+            padding: 0 36px 0 13px;
+            cursor: pointer;
+            background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+            background-position: calc(100% - 17px) 20px, calc(100% - 12px) 20px;
+            background-size: 5px 5px, 5px 5px;
+            background-repeat: no-repeat;
+        }
+        select.field { cursor: pointer; }
+
+        .btn {
+            min-height: 42px;
+            border: 1px solid transparent;
+            border-radius: var(--radius-control);
+            padding: 10px 16px;
+            cursor: pointer;
+            font-weight: 700;
+            transition: background 0.16s, border-color 0.16s, transform 0.16s, box-shadow 0.16s;
+        }
+        .btn:active { transform: translateY(1px); }
+        .btn:disabled { cursor: wait; opacity: 0.65; }
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            box-shadow: 0 7px 16px rgba(206, 73, 53, 0.18);
+        }
+        .btn-primary:hover { background: var(--accent-dark); }
+        .btn-ghost { background: rgba(255, 255, 255, 0.42); border-color: rgba(255, 255, 255, 0.65); }
+        .btn-ghost:hover { border-color: rgba(255, 255, 255, 0.88); background: rgba(255, 255, 255, 0.62); }
+        .btn-danger { color: var(--danger); background: #fff7f6; border-color: #efceca; }
+        .btn-danger:hover { background: #feecea; }
         .btn-block { width: 100%; }
+        .new-btn { min-height: 46px; white-space: nowrap; }
 
-        /* 搜索 + 分类筛选 */
-        .toolbar { padding: 16px 18px; margin-bottom: 16px; }
-        .toolbar .field { margin-bottom: 12px; }
-        .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+        .filters {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 2px 0 8px;
+            scrollbar-width: none;
+        }
+        .filters::-webkit-scrollbar { display: none; }
         .chip {
-            border: 1px solid rgba(255, 255, 255, 0.5); cursor: pointer;
-            background: rgba(255, 255, 255, 0.4); color: var(--text-sub);
-            padding: 8px 16px; border-radius: 100px; font-size: 0.88rem; font-weight: 600;
+            flex: 0 0 auto;
+            min-height: 34px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 7px 13px;
+            background: transparent;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 0.82rem;
+            font-weight: 700;
         }
-        .chip.active { background: linear-gradient(135deg, #6a8bff, #8a6aff); color: #fff; border-color: transparent; }
+        .chip:hover { border-color: #b8c0b7; color: var(--ink); }
+        .chip.active { background: var(--green); border-color: var(--green); color: #fff; }
 
-        .newbar { display: flex; justify-content: flex-end; margin: 0 4px 16px; }
-
-        /* 标签样式 */
-        .tag {
-            display: inline-flex; align-items: center; gap: 4px;
-            font-size: 0.75rem; padding: 4px 10px; border-radius: 100px;
-            background: rgba(255, 255, 255, 0.5); border: 1px solid rgba(255, 255, 255, 0.55);
-            color: var(--text-sub);
+        .list-head {
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 2px 0 12px;
         }
+        .result-count { color: var(--muted); font-size: 0.86rem; }
+        .clear-filter {
+            border: 0; background: transparent; color: var(--accent); cursor: pointer;
+            padding: 6px 0; font-size: 0.82rem; font-weight: 700;
+        }
+        .clear-filter[hidden] { display: none; }
 
-        /* 菜谱网格 + 卡片 */
-        .recipe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; }
-        .rcard { padding: 0; cursor: pointer; transition: transform 0.12s; }
-        .rcard:active { transform: scale(0.97); }
-        .rcard .cover { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; }
+        .recipe-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 18px;
+        }
+        .rcard {
+            min-width: 0;
+            overflow: hidden;
+            border-radius: var(--radius-card);
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.36);
+            backdrop-filter: blur(18px) saturate(150%);
+            -webkit-backdrop-filter: blur(18px) saturate(150%);
+            transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
+        }
+        .rcard:hover {
+            transform: translateY(-3px);
+            border-color: rgba(255, 255, 255, 0.86);
+            box-shadow: 0 18px 38px rgba(31, 40, 33, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.88);
+        }
+        .rcard:active { transform: translateY(-1px); }
+        .cover-wrap { position: relative; overflow: hidden; background: #e9ede8; }
+        .rcard .cover {
+            width: 100%; aspect-ratio: 4 / 3;
+            object-fit: cover; display: block;
+            transition: transform 0.28s;
+        }
+        .rcard:hover .cover { transform: scale(1.025); }
         .rcard .cover.ph {
-            display: grid; place-items: center; font-size: 3rem;
-            background: linear-gradient(135deg, rgba(200,220,255,0.55), rgba(255,220,220,0.45));
+            display: grid; place-items: center;
+            background: #e8eee9;
+            color: var(--green);
+            font-size: 3.5rem;
         }
-        .rcard .rbody { padding: 12px 14px 14px; }
-        .rcard .rtitle { font-weight: 700; font-size: 1.02rem; word-break: break-word; }
-        .rcard .rmeta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .difficulty-badge {
+            position: absolute; top: 10px; right: 10px;
+            padding: 5px 9px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.92);
+            color: var(--ink);
+            font-size: 0.7rem;
+            font-weight: 800;
+            box-shadow: 0 2px 8px rgba(31, 40, 33, 0.1);
+        }
+        .difficulty-badge.diff-1 { color: var(--gold); }
+        .difficulty-badge.diff-2 { color: var(--danger); }
+        .rbody { padding: 15px 16px 17px; }
+        .card-category {
+            min-height: 18px;
+            color: var(--green);
+            font-size: 0.72rem;
+            font-weight: 800;
+        }
+        .rtitle {
+            margin-top: 5px;
+            font-size: 1.08rem;
+            line-height: 1.35;
+            font-weight: 800;
+            word-break: break-word;
+        }
+        .rmeta {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 7px 12px;
+            min-height: 21px;
+            margin-top: 12px;
+            color: var(--muted);
+            font-size: 0.78rem;
+        }
+        .meta-item { display: inline-flex; align-items: center; gap: 5px; }
+        .meta-dot { width: 4px; height: 4px; border-radius: 50%; background: #bdc3bc; }
 
-        .empty { text-align: center; color: var(--text-sub); padding: 50px 0; grid-column: 1 / -1; }
+        .state-panel {
+            grid-column: 1 / -1;
+            min-height: 260px;
+            display: grid;
+            place-items: center;
+            text-align: center;
+            color: var(--muted);
+            border: 1px dashed #cbd1ca;
+            border-radius: var(--radius-panel);
+            background: rgba(255, 255, 255, 0.28);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            padding: 36px 20px;
+        }
+        .state-icon { display: block; margin-bottom: 10px; font-size: 2rem; }
+        .state-title { color: var(--ink); font-weight: 800; margin-bottom: 5px; }
+        .state-copy { font-size: 0.86rem; line-height: 1.6; }
+        .state-action { margin-top: 16px; }
+        .skeleton-grid { grid-column: 1 / -1; display: contents; }
+        .skeleton {
+            min-height: 310px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-card);
+            background: linear-gradient(100deg, #edf0ec 25%, #f8f9f7 40%, #edf0ec 60%);
+            background-size: 200% 100%;
+            animation: shimmer 1.2s infinite linear;
+        }
+        @keyframes shimmer { to { background-position-x: -200%; } }
 
-        /* --- 弹层 --- */
+        .tag {
+            display: inline-flex; align-items: center;
+            padding: 5px 9px;
+            border-radius: 999px;
+            background: #eef3ef;
+            color: var(--green);
+            font-size: 0.74rem;
+            font-weight: 700;
+        }
+
         .overlay {
             position: fixed; inset: 0; z-index: 100;
-            background: rgba(20, 22, 40, 0.35);
-            backdrop-filter: blur(4px);
-            display: none; align-items: center; justify-content: center; padding: 20px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: rgba(21, 25, 22, 0.5);
+            backdrop-filter: blur(3px);
         }
         .overlay.show { display: flex; }
-        .modal { width: 100%; max-width: 460px; max-height: 88vh; overflow-y: auto; padding: 22px; }
-        .modal h2 { margin: 0 0 14px; font-size: 1.25rem; }
-        .field-lbl { display: block; font-size: 0.78rem; color: var(--text-sub); margin: 0 0 6px 4px; }
-        .row { display: flex; gap: 10px; }
-        .row .field { margin-bottom: 12px; }
-        .col { flex: 1; }
+        .modal {
+            width: min(720px, 100%);
+            max-height: min(90vh, 880px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: var(--radius-modal);
+            background: rgba(248, 250, 248, 0.78);
+            backdrop-filter: blur(34px) saturate(165%);
+            -webkit-backdrop-filter: blur(34px) saturate(165%);
+            box-shadow: 0 24px 70px rgba(15, 21, 17, 0.24);
+        }
+        .detail-modal { width: min(760px, 100%); }
+        .modal-head {
+            min-height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.42);
+        }
+        .modal-kicker { color: var(--green); font-size: 0.7rem; font-weight: 800; }
+        .modal h2 { margin: 2px 0 0; font-size: 1.25rem; }
+        .modal-scroll { overflow-y: auto; overscroll-behavior: contain; }
+        .form-content { padding: 8px 22px 24px; }
+        .form-section { padding: 20px 0 8px; border-bottom: 1px solid var(--line); }
+        .form-section:last-child { border-bottom: 0; }
+        .section-heading { margin: 0 0 14px; font-size: 0.95rem; }
+        .section-heading span { color: var(--muted); font-size: 0.78rem; font-weight: 500; }
+        .field-lbl { display: block; margin: 0 0 6px; color: var(--muted); font-size: 0.76rem; font-weight: 700; }
+        .row { display: flex; gap: 12px; }
+        .col { flex: 1; min-width: 0; }
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+            border-top: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.48);
+        }
+        .modal-actions .btn { min-width: 112px; }
 
-        /* 清单编辑器（食材 / 步骤 / 标签） */
-        .list-editor { margin-bottom: 12px; }
-        .list-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
-        .list-row .field { margin: 0; flex: 1; }
+        .list-editor { margin-bottom: 10px; }
+        .list-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+        .list-row .field { flex: 1; min-width: 0; margin: 0; }
         .list-row .rm {
-            border: none; cursor: pointer; flex: 0 0 38px; width: 38px; height: 44px; border-radius: 12px;
-            color: var(--danger); background: rgba(255, 90, 106, 0.1); font-size: 1rem;
+            width: 42px; height: 46px; flex: 0 0 42px;
+            border: 1px solid #efd4d0;
+            border-radius: 13px;
+            background: #fff7f6;
+            color: var(--danger);
+            cursor: pointer;
         }
-        .list-row .rm:active { transform: scale(0.9); }
-        .add-row { font-size: 0.9rem; padding: 9px 14px; }
+        .add-row { min-height: 38px; padding: 8px 12px; font-size: 0.82rem; }
 
-        /* 照片选择 */
-        .photo-pick { margin-bottom: 14px; }
-        .photo-preview { margin-top: 10px; position: relative; display: none; }
-        .photo-preview.show { display: block; }
-        .photo-preview img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 16px; display: block; }
-        .photo-preview .rmphoto {
-            position: absolute; top: 8px; right: 8px; border: none; cursor: pointer;
-            background: rgba(20, 22, 40, 0.6); color: #fff; border-radius: 10px; padding: 6px 10px; font-size: 0.8rem;
+        .photo-pick { margin-bottom: 8px; }
+        .file-btn {
+            position: relative;
+            overflow: hidden;
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
         }
-        .file-btn { position: relative; overflow: hidden; display: inline-block; }
         .file-btn input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+        .photo-preview { display: none; position: relative; margin-top: 12px; }
+        .photo-preview.show { display: block; }
+        .photo-preview img { width: 100%; max-height: 300px; object-fit: cover; display: block; border-radius: 18px; }
+        .rmphoto {
+            position: absolute; top: 10px; right: 10px;
+            min-height: 34px;
+            border: 0;
+            border-radius: 12px;
+            padding: 7px 10px;
+            background: rgba(25, 29, 26, 0.78);
+            color: #fff;
+            cursor: pointer;
+            font-size: 0.78rem;
+        }
 
-        /* 详情弹层 */
-        .detail-photo { width: 100%; max-height: 260px; object-fit: cover; border-radius: 18px; margin-bottom: 14px; }
-        .detail-meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 16px; }
-        .sec-label { font-weight: 700; font-size: 0.95rem; margin: 16px 4px 8px; }
-        .ing-list { margin: 0; padding-left: 20px; }
-        .ing-list li { margin-bottom: 5px; line-height: 1.5; }
+        .detail-scroll { padding: 0 24px 26px; }
+        .detail-photo { width: calc(100% + 48px); max-height: 390px; margin: 0 -24px 22px; object-fit: cover; display: block; }
+        .detail-title { margin: 0; font-size: 1.75rem; line-height: 1.25; word-break: break-word; }
+        .detail-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 12px 0 0; color: var(--muted); font-size: 0.82rem; }
+        .detail-tags { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 16px; }
+        .detail-section { padding-top: 24px; margin-top: 22px; border-top: 1px solid var(--line); }
+        .sec-label { margin: 0 0 14px; font-size: 1rem; }
+        .ing-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px; margin: 0; padding: 0; list-style: none; }
+        .ing-list li { position: relative; padding-left: 18px; line-height: 1.55; word-break: break-word; }
+        .ing-list li::before { content: ""; position: absolute; left: 0; top: 0.64em; width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
         .step-list { margin: 0; padding: 0; list-style: none; counter-reset: step; }
-        .step-list li {
-            counter-increment: step; position: relative; padding: 0 0 12px 34px; line-height: 1.55;
-        }
+        .step-list li { counter-increment: step; position: relative; min-height: 38px; padding: 2px 0 20px 46px; line-height: 1.65; word-break: break-word; }
         .step-list li::before {
-            content: counter(step); position: absolute; left: 0; top: 0;
-            width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
-            font-size: 0.8rem; font-weight: 700; color: #fff;
-            background: linear-gradient(135deg, #6a8bff, #8a6aff);
+            content: counter(step);
+            position: absolute; left: 0; top: 0;
+            width: 30px; height: 30px;
+            display: grid; place-items: center;
+            border-radius: 50%;
+            background: var(--accent);
+            color: #fff;
+            font-size: 0.8rem;
+            font-weight: 800;
         }
-        .detail-notes { color: var(--text-sub); line-height: 1.6; white-space: pre-wrap; }
-        .detail-ops { display: flex; gap: 10px; margin-top: 20px; }
-        .detail-ops .btn { flex: 1; }
+        .step-list li:not(:last-child)::after { content: ""; position: absolute; left: 14px; top: 34px; bottom: 3px; width: 1px; background: #e4d1cd; }
+        .detail-notes { color: var(--muted); line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
+        .detail-ops .btn-danger { margin-right: auto; }
 
         .toast {
-            position: fixed; left: 50%; bottom: 30px; transform: translateX(-50%) translateY(20px);
-            background: rgba(30, 32, 50, 0.85); color: #fff; padding: 11px 20px; border-radius: 14px;
-            font-size: 0.9rem; opacity: 0; transition: all 0.3s; z-index: 200; pointer-events: none;
-            backdrop-filter: blur(8px);
+            position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom)); z-index: 200;
+            max-width: min(420px, calc(100vw - 32px));
+            transform: translateX(-50%) translateY(16px);
+            padding: 11px 16px;
+            border-radius: var(--radius-control);
+            background: #20251f;
+            color: #fff;
+            font-size: 0.86rem;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s, transform 0.2s;
+            box-shadow: 0 8px 24px rgba(20, 25, 21, 0.18);
         }
         .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        @media (max-width: 720px) {
+            body { padding-inline: 16px; }
+            .top { min-height: 104px; }
+            .brand-mark { width: 44px; height: 44px; flex-basis: 44px; }
+            .user-label { display: none; }
+            .toolbar { grid-template-columns: 1fr auto; padding-top: 18px; }
+            .search-wrap { grid-column: 1 / -1; }
+            .sort-select { min-width: 0; }
+            .recipe-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+            .rbody { padding: 12px; }
+            .rtitle { font-size: 0.98rem; }
+            .overlay { align-items: flex-end; padding: 0; }
+            .modal { max-height: 94dvh; border-radius: 28px 28px 0 0; border-bottom: 0; }
+            .form-content { padding-inline: 16px; }
+            .modal-head, .modal-actions { padding-inline: 16px; }
+            .detail-scroll { padding-inline: 18px; }
+            .detail-photo { width: calc(100% + 36px); margin-inline: -18px; }
+        }
+        @media (max-width: 480px) {
+            .top h1 { font-size: 1.55rem; }
+            .top .sub { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .recipe-grid { grid-template-columns: 1fr; }
+            .rcard { display: grid; grid-template-columns: 128px minmax(0, 1fr); min-height: 128px; }
+            .cover-wrap, .rcard .cover { height: 100%; min-height: 128px; aspect-ratio: auto; }
+            .difficulty-badge { top: 8px; right: 8px; }
+            .rbody { display: flex; flex-direction: column; justify-content: center; }
+            .row { flex-direction: column; gap: 0; }
+            .ing-list { grid-template-columns: 1fr; }
+            .modal-actions .btn { min-width: 0; flex: 1; }
+            .detail-ops { flex-wrap: wrap; }
+            .detail-ops .btn-danger { margin-right: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+        }
     </style>
 </head>
 
 <body>
     <main>
         <header class="top glass lit">
-            <div>
-                <h1>菜谱</h1>
-                <div class="sub" id="subline">收藏家常菜，随时翻看怎么做</div>
+            <div class="brand">
+                <div class="brand-mark" aria-hidden="true">🍳</div>
+                <div>
+                    <p class="eyebrow">My kitchen</p>
+                    <h1>菜谱</h1>
+                    <div class="sub" id="subline">收藏家常菜，随时翻看怎么做</div>
+                </div>
             </div>
-            <button class="icon-btn" onclick="logout()" title="退出登录">⎋</button>
+            <div class="header-actions">
+                <span class="user-label" id="userLabel"></span>
+                <button class="icon-btn" onclick="logout()" aria-label="退出登录" title="退出登录">⎋</button>
+            </div>
         </header>
 
         <section class="toolbar glass lit">
-            <input id="search" class="field" placeholder="🔍 搜索菜名 / 食材 / 标签" oninput="onSearch(this.value)">
+            <div class="search-wrap">
+                <span class="search-icon" aria-hidden="true">⌕</span>
+                <input id="search" class="field" placeholder="搜索菜名、食材或标签" aria-label="搜索菜谱"
+                    oninput="onSearch(this.value)">
+            </div>
+            <select id="sortMode" class="sort-select" aria-label="菜谱排序" onchange="onSort(this.value)">
+                <option value="newest">最近添加</option>
+                <option value="name">按菜名排序</option>
+                <option value="time">按烹饪时长</option>
+            </select>
+            <button class="btn btn-primary new-btn" onclick="openCreate()">＋ 新建菜谱</button>
             <div class="filters" id="catChips"></div>
         </section>
 
-        <div class="newbar">
-            <button class="btn btn-primary" onclick="openCreate()">＋ 新建菜谱</button>
+        <div class="list-head">
+            <div id="resultCount" class="result-count" aria-live="polite"></div>
+            <button id="clearFilter" class="clear-filter" onclick="clearFilters()" hidden>清除筛选</button>
         </div>
 
-        <section class="recipe-grid" id="grid"></section>
+        <section class="recipe-grid" id="grid" aria-live="polite">
+            <div class="skeleton-grid" aria-label="正在加载菜谱">
+                <div class="skeleton"></div>
+                <div class="skeleton"></div>
+                <div class="skeleton"></div>
+            </div>
+        </section>
     </main>
 
     <!-- 新建/编辑 表单弹层 -->
-    <div id="formModal" class="overlay">
-        <div class="modal glass">
-            <h2 id="formTitle">新建菜谱</h2>
-            <div class="row">
-                <div class="col" style="flex:3">
-                    <label class="field-lbl">菜名</label>
-                    <input id="fTitle" class="field" placeholder="如 番茄炒蛋">
+    <div id="formModal" class="overlay" aria-hidden="true">
+        <section class="modal glass" role="dialog" aria-modal="true" aria-labelledby="formTitle">
+            <div class="modal-head">
+                <div>
+                    <div class="modal-kicker">菜谱编辑</div>
+                    <h2 id="formTitle">新建菜谱</h2>
                 </div>
-                <div class="col" style="flex:1">
-                    <label class="field-lbl">图标</label>
-                    <input id="fEmoji" class="field" placeholder="🍳" maxlength="4">
-                </div>
+                <button class="icon-btn" type="button" onclick="closeForm()" aria-label="关闭">✕</button>
             </div>
-            <label class="field-lbl">分类</label>
-            <input id="fCategory" class="field" placeholder="选填，如 家常菜 / 汤 / 甜点">
-            <div class="row">
-                <div class="col">
-                    <label class="field-lbl">烹饪时长（分钟）</label>
-                    <input id="fCook" class="field" type="number" min="1" placeholder="选填">
-                </div>
-                <div class="col">
-                    <label class="field-lbl">份量（人数）</label>
-                    <input id="fServings" class="field" type="number" min="1" placeholder="选填">
-                </div>
+            <div class="modal-scroll form-content">
+                <section class="form-section">
+                    <h3 class="section-heading">基本信息</h3>
+                    <div class="row">
+                        <div class="col" style="flex:3">
+                            <label class="field-lbl" for="fTitle">菜名</label>
+                            <input id="fTitle" class="field" placeholder="如 番茄炒蛋" maxlength="100">
+                        </div>
+                        <div class="col" style="flex:1">
+                            <label class="field-lbl" for="fEmoji">图标</label>
+                            <input id="fEmoji" class="field" placeholder="🍳" maxlength="4">
+                        </div>
+                    </div>
+                    <label class="field-lbl" for="fCategory">分类</label>
+                    <input id="fCategory" class="field" placeholder="选填，如 家常菜 / 汤 / 甜点" maxlength="30">
+                    <div class="row">
+                        <div class="col">
+                            <label class="field-lbl" for="fCook">烹饪时长（分钟）</label>
+                            <input id="fCook" class="field" type="number" min="1" placeholder="选填">
+                        </div>
+                        <div class="col">
+                            <label class="field-lbl" for="fServings">份量（人数）</label>
+                            <input id="fServings" class="field" type="number" min="1" placeholder="选填">
+                        </div>
+                        <div class="col">
+                            <label class="field-lbl" for="fDifficulty">难度</label>
+                            <select id="fDifficulty" class="field">
+                                <option value="0">简单</option>
+                                <option value="1">中等</option>
+                                <option value="2">困难</option>
+                            </select>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="form-section">
+                    <h3 class="section-heading">封面照片</h3>
+                    <div class="photo-pick">
+                        <span class="btn btn-ghost file-btn">
+                            ＋ 选择照片
+                            <input id="fPhotoInput" type="file" accept="image/*" onchange="onPhotoPick(event)">
+                        </span>
+                        <div id="fPhotoPreview" class="photo-preview">
+                            <img id="fPhotoImg" alt="菜谱封面预览">
+                            <button type="button" class="rmphoto" onclick="removePhoto()">移除照片</button>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="form-section">
+                    <h3 class="section-heading">标签</h3>
+                    <div id="fTags" class="list-editor"></div>
+                </section>
+
+                <section class="form-section">
+                    <h3 class="section-heading">食材清单</h3>
+                    <div id="fIngredients" class="list-editor"></div>
+                </section>
+
+                <section class="form-section">
+                    <h3 class="section-heading">烹饪步骤</h3>
+                    <div id="fSteps" class="list-editor"></div>
+                </section>
+
+                <section class="form-section">
+                    <h3 class="section-heading">备注</h3>
+                    <textarea id="fNotes" class="field" placeholder="选填，如 小贴士、口味调整" maxlength="500"></textarea>
+                </section>
             </div>
-            <label class="field-lbl">难度</label>
-            <select id="fDifficulty" class="field">
-                <option value="0">简单</option>
-                <option value="1">中等</option>
-                <option value="2">困难</option>
-            </select>
-
-            <label class="field-lbl">封面照片</label>
-            <div class="photo-pick">
-                <span class="btn btn-ghost file-btn">
-                    选择照片
-                    <input id="fPhotoInput" type="file" accept="image/*" onchange="onPhotoPick(event)">
-                </span>
-                <div id="fPhotoPreview" class="photo-preview">
-                    <img id="fPhotoImg" alt="预览">
-                    <button type="button" class="rmphoto" onclick="removePhoto()">移除</button>
-                </div>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" type="button" onclick="closeForm()">取消</button>
+                <button id="saveBtn" class="btn btn-primary" type="button" onclick="saveRecipe()">保存菜谱</button>
             </div>
-
-            <label class="field-lbl">标签</label>
-            <div id="fTags" class="list-editor"></div>
-            <label class="field-lbl">食材</label>
-            <div id="fIngredients" class="list-editor"></div>
-            <label class="field-lbl">步骤</label>
-            <div id="fSteps" class="list-editor"></div>
-
-            <label class="field-lbl">备注</label>
-            <textarea id="fNotes" class="field" placeholder="选填，如 小贴士、口味调整"></textarea>
-
-            <button class="btn btn-primary btn-block" onclick="saveRecipe()">保存</button>
-            <button class="btn btn-ghost btn-block" style="margin-top:10px" onclick="closeForm()">取消</button>
-        </div>
+        </section>
     </div>
 
     <!-- 详情弹层 -->
-    <div id="detailModal" class="overlay">
-        <div class="modal glass">
-            <div id="detailBody"></div>
-            <div class="detail-ops">
-                <button class="btn btn-ghost" onclick="closeDetail()">关闭</button>
-                <button class="btn btn-ghost" id="detailEdit">编辑</button>
-                <button class="btn btn-danger" id="detailDelete">删除</button>
+    <div id="detailModal" class="overlay" aria-hidden="true">
+        <section class="modal detail-modal glass" role="dialog" aria-modal="true" aria-label="菜谱详情">
+            <div class="modal-head">
+                <div class="modal-kicker">菜谱详情</div>
+                <button class="icon-btn" type="button" onclick="closeDetail()" aria-label="关闭">✕</button>
             </div>
-        </div>
+            <div id="detailBody" class="modal-scroll detail-scroll"></div>
+            <div class="modal-actions detail-ops">
+                <button class="btn btn-danger" id="detailDelete">删除</button>
+                <button class="btn btn-ghost" id="detailEdit">编辑</button>
+                <button class="btn btn-primary" onclick="closeDetail()">完成</button>
+            </div>
+        </section>
     </div>
 
     <div id="toast" class="toast"></div>
@@ -339,6 +688,10 @@
         let recipes = [];
         let catFilter = '';       // '' = 全部
         let searchQ = '';
+        let sortMode = 'newest';
+        let loading = true;
+        let loadError = '';
+        let isSaving = false;
         let editingId = null;     // null = 新建
         let formPhoto = '';       // 已在服务器上的路径，或 ''
         let pendingPhoto = null;  // { base64, mime } 已选未上传
@@ -369,65 +722,122 @@
 
         // --- 加载 ---
         async function load() {
+            loading = true;
+            loadError = '';
+            render();
             try {
                 recipes = await api('GET', '/api/recipe/items');
                 renderChips();
+                const categoryCount = new Set(recipes.map(r => r.category).filter(Boolean)).size;
+                document.getElementById('subline').textContent = recipes.length
+                    ? `${recipes.length} 道收藏 · ${categoryCount} 个分类`
+                    : '收藏家常菜，随时翻看怎么做';
+            } catch (e) {
+                if (e.message !== '未登录') loadError = e.message || '加载失败';
+            } finally {
+                loading = false;
                 render();
-            } catch (e) { /* 401 已跳登录；其它静默 */ }
+            }
         }
 
         function renderChips() {
-            const cats = [...new Set(recipes.map(r => r.category).filter(Boolean))];
+            const cats = [...new Set(recipes.map(r => r.category).filter(Boolean))]
+                .sort((a, b) => a.localeCompare(b, 'zh-CN'));
             const el = document.getElementById('catChips');
-            const chip = (val, label) =>
-                `<button class="chip ${catFilter === val ? 'active' : ''}" onclick="setCat('${esc(val)}')">${esc(label)}</button>`;
-            el.innerHTML = chip('', '全部') + cats.map(c => chip(c, c)).join('');
+            el.replaceChildren();
+            [['', '全部'], ...cats.map(c => [c, c])].forEach(([value, label]) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'chip' + (catFilter === value ? ' active' : '');
+                button.textContent = label;
+                button.setAttribute('aria-pressed', catFilter === value ? 'true' : 'false');
+                button.addEventListener('click', () => setCat(value));
+                el.appendChild(button);
+            });
         }
         function setCat(v) { catFilter = v; renderChips(); render(); }
         function onSearch(v) { searchQ = v.trim().toLowerCase(); render(); }
+        function onSort(v) { sortMode = v; render(); }
+        function clearFilters() {
+            catFilter = '';
+            searchQ = '';
+            document.getElementById('search').value = '';
+            renderChips();
+            render();
+        }
 
         function visible() {
-            return recipes.filter(r => {
+            const list = recipes.filter(r => {
                 if (catFilter && r.category !== catFilter) return false;
                 if (!searchQ) return true;
                 const hay = [r.title, r.category, ...(r.tags || []), ...(r.ingredients || [])]
                     .join(' ').toLowerCase();
                 return hay.includes(searchQ);
             });
+            if (sortMode === 'name') return list.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'));
+            if (sortMode === 'time') return list.sort((a, b) => (a.cook_minutes || Infinity) - (b.cook_minutes || Infinity));
+            return list.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
         }
 
         function metaTags(r) {
             const tags = [];
-            if (r.category) tags.push(`<span class="tag">🏷 ${esc(r.category)}</span>`);
-            if (r.cook_minutes) tags.push(`<span class="tag">⏱ ${r.cook_minutes} 分</span>`);
-            tags.push(`<span class="tag">📊 ${DIFF[r.difficulty] || '简单'}</span>`);
+            if (r.cook_minutes) tags.push(`<span class="meta-item">◷ ${r.cook_minutes} 分钟</span>`);
+            if (r.servings) tags.push(`<span class="meta-item">${r.servings} 人份</span>`);
+            tags.push(`<span class="meta-item">${DIFF[r.difficulty] || '简单'}</span>`);
             return tags;
         }
 
         function rcardHTML(r) {
             const cover = r.photo
                 ? `<img class="cover" src="${API + r.photo}" loading="lazy" alt="${esc(r.title)}">`
-                : `<div class="cover ph">${r.emoji || '🍽'}</div>`;
+                : `<div class="cover ph">${esc(r.emoji || '🍽')}</div>`;
+            const difficulty = Number(r.difficulty) || 0;
+            const cardMeta = [];
+            if (r.cook_minutes) cardMeta.push(`<span class="meta-item">◷ ${r.cook_minutes} 分钟</span>`);
+            if (r.servings) cardMeta.push(`<span class="meta-item">${r.servings} 人份</span>`);
             return `
-                <div class="rcard glass lit" onclick="openDetail(${r.id})">
-                    ${cover}
-                    <div class="rbody">
-                        <div class="rtitle">${r.emoji ? esc(r.emoji) + ' ' : ''}${esc(r.title)}</div>
-                        <div class="rmeta">${metaTags(r).join('')}</div>
+                <article class="rcard glass" data-recipe-id="${Number(r.id)}" role="button" tabindex="0"
+                    aria-label="查看菜谱：${esc(r.title)}">
+                    <div class="cover-wrap">
+                        ${cover}
+                        <span class="difficulty-badge diff-${difficulty}">${DIFF[difficulty] || '简单'}</span>
                     </div>
-                </div>`;
+                    <div class="rbody">
+                        <div class="card-category">${esc(r.category || '未分类')}</div>
+                        <div class="rtitle">${r.emoji ? esc(r.emoji) + ' ' : ''}${esc(r.title)}</div>
+                        <div class="rmeta">${cardMeta.join('<span class="meta-dot"></span>')}</div>
+                    </div>
+                </article>`;
         }
 
         function render() {
             const el = document.getElementById('grid');
+            const count = document.getElementById('resultCount');
+            const clear = document.getElementById('clearFilter');
+            clear.hidden = !catFilter && !searchQ;
+            if (loading) {
+                count.textContent = '正在整理菜谱…';
+                el.innerHTML = '<div class="skeleton-grid" aria-label="正在加载菜谱">' +
+                    '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>';
+                return;
+            }
+            if (loadError) {
+                count.textContent = '暂时无法读取菜谱';
+                el.innerHTML = `<div class="state-panel"><div><span class="state-icon">↻</span>
+                    <div class="state-title">菜谱加载失败</div>
+                    <div class="state-copy">${esc(loadError)}</div>
+                    <button class="btn btn-primary state-action" onclick="load()">重新加载</button></div></div>`;
+                return;
+            }
             const list = visible();
+            count.textContent = (catFilter || searchQ) ? `找到 ${list.length} 道菜` : `共 ${recipes.length} 道菜`;
             if (!list.length) {
-                el.innerHTML = '<div class="empty">' +
-                    (recipes.length ? '没有匹配的菜谱' : '还没有菜谱<br>点「新建菜谱」加一道吧') + '</div>';
+                el.innerHTML = recipes.length
+                    ? '<div class="state-panel"><div><span class="state-icon">⌕</span><div class="state-title">没有匹配的菜谱</div><div class="state-copy">换个关键词或清除筛选后再看看</div></div></div>'
+                    : '<div class="state-panel"><div><span class="state-icon">🍲</span><div class="state-title">还没有菜谱</div><div class="state-copy">把第一道常做的菜收藏进来</div><button class="btn btn-primary state-action" onclick="openCreate()">新建菜谱</button></div></div>';
                 return;
             }
             el.innerHTML = list.map(rcardHTML).join('');
-            wireSpecular();
         }
 
         // --- 清单编辑器（食材 / 步骤 / 标签共用）---
@@ -482,6 +892,10 @@
         async function onPhotoPick(ev) {
             const file = ev.target.files && ev.target.files[0];
             if (!file) return;
+            if (file.size > 20 * 1024 * 1024) {
+                ev.target.value = '';
+                return toast('请选择小于 20 MB 的图片');
+            }
             try {
                 const b64 = await compressImage(file);
                 pendingPhoto = { base64: b64, mime: 'image/jpeg' };
@@ -507,6 +921,12 @@
         }
 
         // --- 新建 / 编辑 ---
+        function setModal(id, open) {
+            const modal = document.getElementById(id);
+            modal.classList.toggle('show', open);
+            modal.setAttribute('aria-hidden', open ? 'false' : 'true');
+            document.body.classList.toggle('modal-open', !!document.querySelector('.overlay.show'));
+        }
         function openCreate() {
             editingId = null; formPhoto = ''; pendingPhoto = null;
             document.getElementById('formTitle').textContent = '新建菜谱';
@@ -521,7 +941,8 @@
             renderList('fTags', []);
             renderList('fIngredients', []);
             renderList('fSteps', []);
-            document.getElementById('formModal').classList.add('show');
+            setModal('formModal', true);
+            setTimeout(() => document.getElementById('fTitle').focus(), 0);
         }
         function openEdit(id) {
             const r = recipes.find(x => x.id === id);
@@ -540,38 +961,58 @@
             renderList('fIngredients', r.ingredients);
             renderList('fSteps', r.steps);
             closeDetail();
-            document.getElementById('formModal').classList.add('show');
+            setModal('formModal', true);
+            setTimeout(() => document.getElementById('fTitle').focus(), 0);
         }
-        function closeForm() { document.getElementById('formModal').classList.remove('show'); }
+        function closeForm(force) {
+            if (isSaving && !force) return;
+            setModal('formModal', false);
+        }
 
         async function saveRecipe() {
+            if (isSaving) return;
             const title = document.getElementById('fTitle').value.trim();
             if (!title) return toast('请填菜名');
             const cook = document.getElementById('fCook').value;
             const servings = document.getElementById('fServings').value;
-            let photo;
-            try { photo = await uploadPhotoIfNeeded(); }
-            catch (e) { return toast('照片上传失败：' + e.message); }
-            const body = {
-                title,
-                emoji: document.getElementById('fEmoji').value.trim(),
-                category: document.getElementById('fCategory').value.trim(),
-                cook_minutes: cook ? Number(cook) : null,
-                servings: servings ? Number(servings) : null,
-                difficulty: Number(document.getElementById('fDifficulty').value),
-                tags: collectList('fTags'),
-                ingredients: collectList('fIngredients'),
-                steps: collectList('fSteps'),
-                notes: document.getElementById('fNotes').value.trim(),
-                photo,
-            };
+            const wasEditing = editingId !== null;
+            const saveBtn = document.getElementById('saveBtn');
+            isSaving = true;
+            saveBtn.disabled = true;
+            saveBtn.textContent = pendingPhoto ? '正在上传照片…' : '正在保存…';
             try {
+                const wasUploading = !!pendingPhoto;
+                const photo = await uploadPhotoIfNeeded();
+                if (wasUploading) {
+                    formPhoto = photo;
+                    pendingPhoto = null;
+                }
+                const body = {
+                    title,
+                    emoji: document.getElementById('fEmoji').value.trim(),
+                    category: document.getElementById('fCategory').value.trim(),
+                    cook_minutes: cook ? Number(cook) : null,
+                    servings: servings ? Number(servings) : null,
+                    difficulty: Number(document.getElementById('fDifficulty').value),
+                    tags: collectList('fTags'),
+                    ingredients: collectList('fIngredients'),
+                    steps: collectList('fSteps'),
+                    notes: document.getElementById('fNotes').value.trim(),
+                    photo,
+                };
+                saveBtn.textContent = '正在保存…';
                 if (editingId) await api('PATCH', '/api/recipe/items/' + editingId, body);
                 else await api('POST', '/api/recipe/items', body);
-                closeForm();
+                closeForm(true);
                 await load();
-                toast(editingId ? '已更新' : '已创建');
-            } catch (e) { toast('失败：' + e.message); }
+                toast(wasEditing ? '菜谱已更新' : '菜谱已创建');
+            } catch (e) {
+                toast('保存失败：' + e.message);
+            } finally {
+                isSaving = false;
+                saveBtn.disabled = false;
+                saveBtn.textContent = '保存菜谱';
+            }
         }
 
         // --- 详情 ---
@@ -579,25 +1020,26 @@
             const r = recipes.find(x => x.id === id);
             if (!r) return;
             const photo = r.photo ? `<img class="detail-photo" src="${API + r.photo}" alt="${esc(r.title)}">` : '';
-            const tags = (r.tags || []).map(t => `<span class="tag">🏷 ${esc(t)}</span>`).join('');
-            const meta = metaTags(r).concat(r.servings ? [`<span class="tag">👥 ${r.servings} 人</span>`] : []);
+            const tags = (r.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
+            const meta = metaTags(r);
             const ings = (r.ingredients || []).length
-                ? `<div class="sec-label">🧺 食材</div><ul class="ing-list">${r.ingredients.map(i => `<li>${esc(i)}</li>`).join('')}</ul>` : '';
+                ? `<section class="detail-section"><h3 class="sec-label">食材</h3><ul class="ing-list">${r.ingredients.map(i => `<li>${esc(i)}</li>`).join('')}</ul></section>` : '';
             const steps = (r.steps || []).length
-                ? `<div class="sec-label">👨‍🍳 步骤</div><ol class="step-list">${r.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>` : '';
+                ? `<section class="detail-section"><h3 class="sec-label">烹饪步骤</h3><ol class="step-list">${r.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol></section>` : '';
             const notes = r.notes
-                ? `<div class="sec-label">📝 备注</div><div class="detail-notes">${esc(r.notes)}</div>` : '';
+                ? `<section class="detail-section"><h3 class="sec-label">备注</h3><div class="detail-notes">${esc(r.notes)}</div></section>` : '';
             document.getElementById('detailBody').innerHTML = `
                 ${photo}
-                <h2 style="margin:0 0 6px">${r.emoji ? esc(r.emoji) + ' ' : ''}${esc(r.title)}</h2>
+                <div class="card-category">${esc(r.category || '未分类')}</div>
+                <h2 class="detail-title">${r.emoji ? esc(r.emoji) + ' ' : ''}${esc(r.title)}</h2>
                 <div class="detail-meta">${meta.join('')}</div>
-                ${tags ? `<div class="detail-meta">${tags}</div>` : ''}
+                ${tags ? `<div class="detail-tags">${tags}</div>` : ''}
                 ${ings}${steps}${notes}`;
             document.getElementById('detailEdit').onclick = () => openEdit(id);
             document.getElementById('detailDelete').onclick = () => doDelete(id);
-            document.getElementById('detailModal').classList.add('show');
+            setModal('detailModal', true);
         }
-        function closeDetail() { document.getElementById('detailModal').classList.remove('show'); }
+        function closeDetail() { setModal('detailModal', false); }
 
         async function doDelete(id) {
             const r = recipes.find(x => x.id === id);
@@ -618,26 +1060,34 @@
             clearTimeout(toastTimer);
             toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
         }
-        function wireSpecular() {
-            document.querySelectorAll('.glass.lit').forEach(el => {
-                el.onpointermove = (e) => {
-                    const r = el.getBoundingClientRect();
-                    el.style.setProperty('--x', (e.clientX - r.left) + 'px');
-                    el.style.setProperty('--y', (e.clientY - r.top) + 'px');
-                };
-            });
-        }
-
-        // 点弹层背景关闭
+        // 卡片操作、弹层关闭与键盘操作
+        document.getElementById('grid').addEventListener('click', (e) => {
+            const card = e.target.closest('[data-recipe-id]');
+            if (card) openDetail(Number(card.dataset.recipeId));
+        });
+        document.getElementById('grid').addEventListener('keydown', (e) => {
+            const card = e.target.closest('[data-recipe-id]');
+            if (!card || (e.key !== 'Enter' && e.key !== ' ')) return;
+            e.preventDefault();
+            openDetail(Number(card.dataset.recipeId));
+        });
         document.querySelectorAll('.overlay').forEach(o => {
-            o.addEventListener('click', (e) => { if (e.target === o) o.classList.remove('show'); });
+            o.addEventListener('click', (e) => {
+                if (e.target !== o || isSaving) return;
+                if (o.id === 'formModal') closeForm();
+                else closeDetail();
+            });
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape' || isSaving) return;
+            if (document.getElementById('formModal').classList.contains('show')) closeForm();
+            else if (document.getElementById('detailModal').classList.contains('show')) closeDetail();
         });
 
         // --- 启动 ---
         window.addEventListener('load', () => {
-            wireSpecular();
             if (!store.token) { gotoLogin(); return; }
-            document.getElementById('subline').textContent = '你好，' + (store.user || '用户');
+            document.getElementById('userLabel').textContent = store.user || '用户';
             load();
         });
     </script>
