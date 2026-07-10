@@ -301,6 +301,12 @@ app.post('/api/auth/admins', requireOwner, wrap((req, res) => {
   res.json({ ok: true, username, is_admin: !!makeAdmin });
 }));
 
+// 列出所有用户及管理员状态（仅所有者）
+app.get('/api/auth/admins', requireOwner, wrap((req, res) => {
+  const rows = db.prepare('SELECT username, is_admin FROM users ORDER BY is_admin DESC, username').all();
+  res.json(rows.map((u) => ({ username: u.username, is_admin: !!u.is_admin, is_owner: u.username === OWNER_USERNAME })));
+}));
+
 // ============ 认证中间件：保护所有 app 数据接口 ============
 function requireAuth(req, res, next) {
   const p = verifyTokenStr((req.get('Authorization') || '').replace(/^Bearer /, ''));

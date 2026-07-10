@@ -190,6 +190,17 @@
         .btn-danger:hover { color: var(--danger); background: rgba(184, 50, 50, 0.08); }
         .btn-block { width: 100%; }
         body:not(.is-admin) .admin-only { display: none !important; }
+        body:not(.is-owner) .owner-only { display: none !important; }
+        .btn-sm { min-width: 0 !important; padding: 8px 14px; font-size: 0.85rem; }
+        .admins-scroll { padding: 6px 22px 22px; }
+        .admins-hint { color: var(--muted); font-size: 0.82rem; margin: 2px 0 10px; }
+        .admin-row { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+        .admin-row:last-child { border-bottom: 0; }
+        .admin-uname { font-weight: 700; flex: 1; min-width: 0; word-break: break-word; }
+        .admin-badge { font-size: 0.72rem; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+        .admin-badge.owner { color: var(--accent); background: rgba(206, 73, 53, 0.1); }
+        .admin-badge.adm { color: var(--green); background: rgba(74, 122, 74, 0.12); }
+        .admins-msg { color: var(--muted); padding: 18px 0; text-align: center; }
         .new-btn { min-height: 46px; white-space: nowrap; }
 
         .filters {
@@ -697,6 +708,7 @@
             </div>
             <div class="header-actions">
                 <span class="user-label" id="userLabel"></span>
+                <button class="icon-btn owner-only" id="adminsBtn" onclick="openAdmins()" aria-label="管理员管理" title="管理员管理">👥</button>
                 <button class="icon-btn" id="authBtn" aria-label="登录或退出" title="登录">⎋</button>
             </div>
         </header>
@@ -832,6 +844,16 @@
                 <button class="btn btn-ghost admin-only" id="detailEdit">编辑</button>
                 <button class="btn btn-primary" onclick="closeDetail()">完成</button>
             </div>
+        </section>
+    </div>
+
+    <div id="adminsModal" class="overlay" aria-hidden="true">
+        <section class="modal glass" role="dialog" aria-modal="true" aria-label="管理员管理">
+            <div class="modal-head">
+                <div class="modal-kicker">管理员管理</div>
+                <button class="icon-btn" type="button" onclick="closeAdmins()" aria-label="关闭">✕</button>
+            </div>
+            <div id="adminsBody" class="modal-scroll admins-scroll"></div>
         </section>
     </div>
 
@@ -1501,13 +1523,15 @@
                 if (e.target !== o || isSaving) return;
                 if (document.getElementById('popover').classList.contains('show')) return;
                 if (o.id === 'formModal') closeForm();
+                else if (o.id === 'adminsModal') closeAdmins();
                 else closeDetail();
             });
         });
         document.addEventListener('keydown', (e) => {
             if (e.key !== 'Escape' || isSaving) return;
             if (document.getElementById('popover').classList.contains('show')) { closePopover(); return; }
-            if (document.getElementById('formModal').classList.contains('show')) closeForm();
+            if (document.getElementById('adminsModal').classList.contains('show')) closeAdmins();
+            else if (document.getElementById('formModal').classList.contains('show')) closeForm();
             else if (document.getElementById('detailModal').classList.contains('show')) closeDetail();
         });
 
@@ -1534,7 +1558,48 @@
             } catch (e) { isAdmin = false; isOwner = false; }
             applyAdminUI();
         }
-        function applyAdminUI() { document.body.classList.toggle('is-admin', isAdmin); }
+        function applyAdminUI() {
+            document.body.classList.toggle('is-admin', isAdmin);
+            document.body.classList.toggle('is-owner', isOwner);
+        }
+
+        // --- 管理员管理（仅所有者）---
+        function openAdmins() { loadAdmins(); setModal('adminsModal', true); }
+        function closeAdmins() { setModal('adminsModal', false); }
+        async function loadAdmins() {
+            const body = document.getElementById('adminsBody');
+            body.innerHTML = '<div class="admins-msg">加载中…</div>';
+            try {
+                const res = await fetch(API + '/api/auth/admins', { headers: { Authorization: 'Bearer ' + store.token } });
+                if (!res.ok) throw new Error(res.status === 403 ? '仅所有者可用' : ('HTTP ' + res.status));
+                body.innerHTML = renderAdmins(await res.json());
+            } catch (e) { body.innerHTML = '<div class="admins-msg">加载失败：' + esc(e.message) + '</div>'; }
+        }
+        function renderAdmins(users) {
+            if (!users || !users.length) return '<div class="admins-msg">还没有用户</div>';
+            const rows = users.map(u => {
+                const badge = u.is_owner ? '<span class="admin-badge owner">所有者</span>'
+                    : (u.is_admin ? '<span class="admin-badge adm">管理员</span>' : '');
+                const btn = u.is_owner ? ''
+                    : (u.is_admin
+                        ? `<button class="btn btn-ghost btn-sm" onclick="toggleAdmin('${esc(u.username)}', false)">取消管理员</button>`
+                        : `<button class="btn btn-primary btn-sm" onclick="toggleAdmin('${esc(u.username)}', true)">设为管理员</button>`);
+                return `<div class="admin-row"><span class="admin-uname">${esc(u.username)}</span>${badge}${btn}</div>`;
+            }).join('');
+            return '<div class="admins-hint">管理员可增删改自己上传的菜谱；你（所有者）可操作全部。</div>' + rows;
+        }
+        async function toggleAdmin(username, makeAdmin) {
+            try {
+                const res = await fetch(API + '/api/auth/admins', {
+                    method: 'POST',
+                    headers: { Authorization: 'Bearer ' + store.token, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, is_admin: makeAdmin }),
+                });
+                if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || ('HTTP ' + res.status)); }
+                toast(makeAdmin ? '已设为管理员' : '已取消管理员');
+                loadAdmins();
+            } catch (e) { toast('失败：' + e.message); }
+        }
         // 能否增删改某道菜：所有者可操作全部，普通管理员只能改自己上传的
         function canEditRecipe(r) {
             return isAdmin && (isOwner || (r.owner_name && r.owner_name === store.user));
