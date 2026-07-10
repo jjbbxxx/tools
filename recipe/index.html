@@ -387,6 +387,8 @@
         }
         .modal-head .icon-btn:hover { background: rgba(255, 255, 255, 0.78); box-shadow: none; }
         .modal-kicker { color: var(--green); font-size: 0.7rem; font-weight: 800; }
+        .modal-head-right { display: flex; align-items: center; gap: 10px; }
+        .detail-from { color: var(--muted); font-size: 0.8rem; font-weight: 600; white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
         .modal h2 { margin: 2px 0 0; font-size: 1.32rem; }
         .modal-scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
         .form-content { padding: 2px 24px 32px; }
@@ -819,7 +821,10 @@
         <section class="modal detail-modal glass" role="dialog" aria-modal="true" aria-label="菜谱详情">
             <div class="modal-head">
                 <div class="modal-kicker">菜谱详情</div>
-                <button class="icon-btn" type="button" onclick="closeDetail()" aria-label="关闭">✕</button>
+                <div class="modal-head-right">
+                    <span id="detailFrom" class="detail-from"></span>
+                    <button class="icon-btn" type="button" onclick="closeDetail()" aria-label="关闭">✕</button>
+                </div>
             </div>
             <div id="detailBody" class="modal-scroll detail-scroll"></div>
             <div class="modal-actions detail-ops">
@@ -857,7 +862,8 @@
         let sortMode = 'newest';
         let loading = true;
         let loadError = '';
-        let isAdmin = false;      // 只有管理员能增删改
+        let isAdmin = false;      // 管理员：能增删改（自己的）
+        let isOwner = false;      // 所有者(jbx)：能操作所有菜
         let isSaving = false;
         let editingId = null;     // null = 新建
         let formPhoto = '';       // 已在服务器上的路径，或 ''
@@ -1371,6 +1377,7 @@
         function openDetail(id) {
             const r = recipes.find(x => x.id === id);
             if (!r) return;
+            const canEdit = canEditRecipe(r);
             const photo = r.photo ? `<img class="detail-photo" src="${API + r.photo}" alt="${esc(r.title)}">` : '';
             const tags = (r.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
             const meta = recipeMeta(r);
@@ -1394,14 +1401,17 @@
                 ${tags ? `<div class="detail-tags">${tags}</div>` : ''}
                 <div class="cook-count">
                     <span class="cc-label">已做</span>
-                    <button class="cc-btn admin-only" type="button" onclick="bumpCount(${Number(r.id)}, -1)" aria-label="次数减一">−</button>
+                    ${canEdit ? `<button class="cc-btn" type="button" onclick="bumpCount(${Number(r.id)}, -1)" aria-label="次数减一">−</button>` : ''}
                     <span class="cc-num">${r.cook_count || 0}</span>
                     <span class="cc-unit">次</span>
-                    <button class="cc-btn admin-only" type="button" onclick="bumpCount(${Number(r.id)}, 1)" aria-label="次数加一">＋</button>
+                    ${canEdit ? `<button class="cc-btn" type="button" onclick="bumpCount(${Number(r.id)}, 1)" aria-label="次数加一">＋</button>` : ''}
                 </div>
                 ${ings}${seasonings}${prep}${sauces}${steps}${notes}`;
             document.getElementById('detailEdit').onclick = () => openEdit(id);
             document.getElementById('detailDelete').onclick = (e) => askDelete(e, id);
+            document.getElementById('detailFrom').textContent = r.owner_name ? '来自 ' + r.owner_name : '';
+            document.getElementById('detailEdit').style.display = canEdit ? '' : 'none';
+            document.getElementById('detailDelete').style.display = canEdit ? '' : 'none';
             setModal('detailModal', true);
         }
         function closeDetail() { closePopover(); setModal('detailModal', false); }
@@ -1519,11 +1529,16 @@
         async function checkAdmin() {
             try {
                 const res = await fetch(API + '/api/auth/me', { headers: { Authorization: 'Bearer ' + store.token } });
-                isAdmin = res.ok ? !!(await res.json()).is_admin : false;
-            } catch (e) { isAdmin = false; }
+                if (res.ok) { const me = await res.json(); isAdmin = !!me.is_admin; isOwner = !!me.is_owner; }
+                else { isAdmin = false; isOwner = false; }
+            } catch (e) { isAdmin = false; isOwner = false; }
             applyAdminUI();
         }
         function applyAdminUI() { document.body.classList.toggle('is-admin', isAdmin); }
+        // 能否增删改某道菜：所有者可操作全部，普通管理员只能改自己上传的
+        function canEditRecipe(r) {
+            return isAdmin && (isOwner || (r.owner_name && r.owner_name === store.user));
+        }
 
         // --- 启动 ---
         window.addEventListener('load', () => {

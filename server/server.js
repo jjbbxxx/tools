@@ -221,6 +221,10 @@ function cleanPairList(v, secondKey) {
 function recipeOut(r) {
   return { ...r, tags: JSON.parse(r.tags || '[]'), ingredients: JSON.parse(r.ingredients || '[]'), seasonings: JSON.parse(r.seasonings || '[]'), steps: JSON.parse(r.steps || '[]'), prep: JSON.parse(r.prep || '[]'), sauces: JSON.parse(r.sauces || '[]') };
 }
+// 取单条菜谱并带上传者用户名（owner_name）
+function recipeWithOwner(id) {
+  return db.prepare('SELECT r.*, u.username AS owner_name FROM recipes r LEFT JOIN users u ON u.id = r.user_id WHERE r.id = ?').get(id);
+}
 // 删除菜谱照片文件（防路径穿越）
 function unlinkPhoto(p) {
   if (!p) return;
@@ -505,9 +509,9 @@ app.delete('/api/todo/items/:id', requireAuth, wrap((req, res) => {
 }));
 
 // ============ 菜谱：/api/recipe ============
-// 公开：任何人可查看整本菜谱（共享，不按用户隔离）
+// 公开：任何人可查看整本菜谱（共享）；带上传者用户名
 app.get('/api/recipe/items', wrap((req, res) => {
-  const rows = db.prepare('SELECT * FROM recipes ORDER BY created_at DESC').all();
+  const rows = db.prepare('SELECT r.*, u.username AS owner_name FROM recipes r LEFT JOIN users u ON u.id = r.user_id ORDER BY r.created_at DESC').all();
   res.json(rows.map(recipeOut));
 }));
 
@@ -522,13 +526,14 @@ app.post('/api/recipe/items', requireAdmin, wrap((req, res) => {
     cleanIntNullable(b.cook_minutes, 100000), cleanIntNullable(b.servings, 999), cleanDifficulty(b.difficulty),
     cleanStringList(b.tags, 20, 30), cleanStringList(b.ingredients, 60, 200), cleanStringList(b.seasonings, 60, 200), cleanStringList(b.steps, 60, 500),
     cleanPairList(b.prep, 'action'), cleanPairList(b.sauces, 'mix'), cleanNote(b.notes), cleanPhotoPath(b.photo));
-  res.status(201).json(recipeOut(db.prepare('SELECT * FROM recipes WHERE id = ?').get(info.lastInsertRowid)));
+  res.status(201).json(recipeOut(recipeWithOwner(info.lastInsertRowid)));
 }));
 
 app.patch('/api/recipe/items/:id', requireAdmin, wrap((req, res) => {
   const id = Number(req.params.id);
   const ex = db.prepare('SELECT * FROM recipes WHERE id = ?').get(id);
   if (!ex) return res.status(404).json({ error: '菜谱不存在' });
+  if (req.username !== OWNER_USERNAME && ex.user_id !== req.uid) return res.status(403).json({ error: '只能修改自己上传的菜谱' });
   const b = req.body || {};
   const title = b.title !== undefined ? cleanName(b.title) : ex.title;
   if (!title) return res.status(400).json({ error: '菜名无效' });
@@ -553,13 +558,14 @@ app.patch('/api/recipe/items/:id', requireAdmin, wrap((req, res) => {
   db.prepare(`UPDATE recipes SET title = ?, emoji = ?, category = ?, cook_minutes = ?, servings = ?, difficulty = ?,
     tags = ?, ingredients = ?, seasonings = ?, steps = ?, prep = ?, sauces = ?, notes = ?, photo = ?, cook_count = ? WHERE id = ?`).run(
     title, emoji, category, cook, servings, difficulty, tags, ingredients, seasonings, steps, prep, sauces, notes, photo, cook_count, id);
-  res.json(recipeOut(db.prepare('SELECT * FROM recipes WHERE id = ?').get(id)));
+  res.json(recipeOut(recipeWithOwner(id)));
 }));
 
 app.delete('/api/recipe/items/:id', requireAdmin, wrap((req, res) => {
   const id = Number(req.params.id);
   const ex = db.prepare('SELECT * FROM recipes WHERE id = ?').get(id);
   if (!ex) return res.status(404).json({ error: '菜谱不存在' });
+  if (req.username !== OWNER_USERNAME && ex.user_id !== req.uid) return res.status(403).json({ error: '只能删除自己上传的菜谱' });
   unlinkPhoto(ex.photo);
   db.prepare('DELETE FROM recipes WHERE id = ?').run(id);
   res.json({ ok: true });
