@@ -654,6 +654,105 @@
         }
         .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+        /* 工具栏按钮组 + 「今天吃什么」入口 */
+        .tb-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+        .spin-open-btn {
+            border: 0;
+            color: #fff;
+            white-space: nowrap;
+            background: linear-gradient(120deg, var(--accent), var(--gold));
+            box-shadow: 0 7px 16px rgba(206, 73, 53, 0.2);
+        }
+        .spin-open-btn:hover { filter: brightness(1.05); }
+
+        /* 今天吃什么 转盘弹层 */
+        .spin-modal { width: min(560px, 100%); }
+        .spin-body { padding: 6px 22px 26px; }
+        .spin-scope { display: flex; gap: 8px; overflow-x: auto; padding: 6px 0 10px; scrollbar-width: none; }
+        .spin-scope::-webkit-scrollbar { display: none; }
+        .spin-scope .chip { flex: 0 0 auto; }
+        .spin-scope .chip.tag-chip.active { background: var(--accent); border-color: var(--accent); }
+        .spin-scope-hint { min-height: 18px; margin: 0 0 4px; color: var(--muted); font-size: 0.8rem; text-align: center; }
+
+        .wheel-stage { position: relative; width: min(86vw, 420px); aspect-ratio: 1; margin: 6px auto 2px; }
+        .wheel-pointer {
+            position: absolute; top: -2px; left: 50%; z-index: 6;
+            width: 0; height: 0;
+            transform: translateX(-50%);
+            border-left: 13px solid transparent;
+            border-right: 13px solid transparent;
+            border-top: 22px solid var(--accent);
+            filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.22));
+        }
+        .wheel {
+            position: absolute; inset: 0;
+            border-radius: 50%;
+            will-change: transform;
+            background:
+                radial-gradient(circle at 50% 46%, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.3) 58%, rgba(255, 255, 255, 0.14) 100%);
+            box-shadow:
+                inset 0 0 0 2px rgba(255, 255, 255, 0.6),
+                inset 0 0 0 12px rgba(255, 255, 255, 0.12),
+                0 18px 46px rgba(31, 40, 33, 0.16);
+        }
+        .wheel-hub {
+            position: absolute; top: 50%; left: 50%; z-index: 5;
+            width: 62px; height: 62px;
+            display: grid; place-items: center;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            font-size: 1.55rem;
+            background: rgba(255, 255, 255, 0.88);
+            box-shadow: 0 6px 16px rgba(31, 40, 33, 0.18), inset 0 1px 0 #fff;
+            pointer-events: none;
+        }
+        .wheel-card {
+            position: absolute; top: 50%; left: 50%;
+            width: 78px; height: 98px;
+            margin: -49px 0 0 -39px;
+            pointer-events: none;
+            transition: transform 0.62s cubic-bezier(0.22, 1.2, 0.36, 1);
+            will-change: transform;
+        }
+        .wc-inner {
+            width: 100%; height: 100%;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 5px;
+            padding: 8px 6px;
+            border-radius: 16px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid rgba(255, 255, 255, 0.85);
+            box-shadow: 0 8px 18px rgba(31, 40, 33, 0.14);
+            transition: transform 0.28s, box-shadow 0.28s, border-color 0.28s;
+        }
+        .wc-emoji { font-size: 1.5rem; line-height: 1; }
+        .wc-title {
+            max-width: 100%;
+            color: var(--ink);
+            font-size: 0.66rem;
+            font-weight: 800;
+            line-height: 1.15;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .wheel-card.win { z-index: 7; }
+        .wheel-card.win .wc-inner {
+            transform: scale(1.16);
+            border-color: var(--accent);
+            background: #fff;
+            box-shadow: 0 12px 30px rgba(206, 73, 53, 0.4);
+        }
+
+        .spin-result { margin-top: 8px; text-align: center; }
+        .spin-result-label { color: var(--muted); font-size: 0.82rem; font-weight: 700; }
+        .spin-result-name { margin-top: 3px; font-size: 1.5rem; font-weight: 800; word-break: break-word; }
+        .spin-actions { justify-content: center; }
+        .spin-actions .btn { min-width: 128px; }
+
         @media (max-width: 720px) {
             body { padding-inline: 16px; }
             .top { min-height: 104px; }
@@ -724,7 +823,10 @@
                 <option value="name">按菜名排序</option>
                 <option value="cooked">按次数排序</option>
             </select>
-            <button class="btn btn-primary new-btn admin-only" onclick="openCreate()">＋ 新建菜谱</button>
+            <div class="tb-actions">
+                <button class="btn spin-open-btn new-btn" onclick="openSpin()">🎡 今天吃什么</button>
+                <button class="btn btn-primary new-btn admin-only" onclick="openCreate()">＋ 新建菜谱</button>
+            </div>
             <div class="filters" id="catChips"></div>
         </section>
 
@@ -842,6 +944,37 @@
                 <button class="btn btn-danger admin-only" id="detailDelete">删除菜谱</button>
                 <button class="btn btn-ghost admin-only" id="detailEdit">编辑</button>
                 <button class="btn btn-primary" onclick="closeDetail()">完成</button>
+            </div>
+        </section>
+    </div>
+
+    <!-- 今天吃什么 转盘 -->
+    <div id="spinModal" class="overlay" aria-hidden="true">
+        <section class="modal spin-modal glass" role="dialog" aria-modal="true" aria-labelledby="spinTitle">
+            <div class="modal-head">
+                <div>
+                    <div class="modal-kicker">来点灵感</div>
+                    <h2 id="spinTitle">今天吃什么？！</h2>
+                </div>
+                <button class="icon-btn" type="button" onclick="closeSpin()" aria-label="关闭">✕</button>
+            </div>
+            <div class="modal-scroll spin-body">
+                <div class="spin-scope" id="spinScope" aria-label="选择范围"></div>
+                <div class="spin-scope-hint" id="spinScopeHint" aria-live="polite"></div>
+                <div class="wheel-stage" id="wheelStage">
+                    <div class="wheel-pointer" aria-hidden="true"></div>
+                    <div class="wheel" id="wheel"></div>
+                    <div class="wheel-hub" aria-hidden="true">🍽</div>
+                </div>
+                <div class="spin-result" id="spinResult" aria-live="polite" hidden>
+                    <div class="spin-result-label">今天就吃</div>
+                    <div class="spin-result-name" id="spinResultName"></div>
+                </div>
+            </div>
+            <div class="modal-actions spin-actions">
+                <button class="btn btn-ghost" type="button" id="spinAgainBtn" onclick="spinAgain()" hidden>再转一次</button>
+                <button class="btn btn-primary" type="button" id="spinOpenBtn" onclick="spinOpenWinner()" hidden>看看怎么做</button>
+                <button class="btn btn-primary" type="button" id="spinActionBtn" onclick="spinAction()">开始转 🎡</button>
             </div>
         </section>
     </div>
@@ -1515,7 +1648,8 @@
         document.addEventListener('keydown', (e) => {
             if (e.key !== 'Escape' || isSaving) return;
             if (document.getElementById('popover').classList.contains('show')) { closePopover(); return; }
-            if (document.getElementById('adminsModal').classList.contains('show')) closeAdmins();
+            if (document.getElementById('spinModal').classList.contains('show')) closeSpin();
+            else if (document.getElementById('adminsModal').classList.contains('show')) closeAdmins();
             else if (document.getElementById('detailModal').classList.contains('show')) closeDetail();
             // 表单弹窗不响应 Esc：只能用右上角关闭键，避免误触丢失编辑
         });
@@ -1589,6 +1723,229 @@
         function canEditRecipe(r) {
             return isAdmin && (isOwner || (r.owner_name && r.owner_name === store.user));
         }
+
+        // --- 今天吃什么：转盘 ---
+        const WHEEL_MAX = 12;
+        const reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+        let spinScope = { type: 'all' };   // { type:'all' } | { type:'cat', value } | { type:'tag', value }
+        let wheelItems = [];
+        let wheelAngle = 0;
+        let wheelSpeed = 0;
+        let wheelRaf = null;
+        let wheelSpinning = false;
+        let wheelWinner = -1;
+        let wheelState = 'idle';           // idle | spinning | stopping | done | empty
+
+        function shuffle(arr) {
+            const a = arr.slice();
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
+        }
+        function firstEmoji(str) {
+            const glyphs = splitEmojis(str);
+            return glyphs.length ? glyphs[0] : '🍽';
+        }
+        function sameScope(a, b) { return a.type === b.type && (a.value || '') === (b.value || ''); }
+        function spinScopeList() {
+            if (spinScope.type === 'cat') return recipes.filter(r => (r.categories || []).includes(spinScope.value));
+            if (spinScope.type === 'tag') return recipes.filter(r => (r.tags || []).includes(spinScope.value));
+            return recipes.slice();
+        }
+
+        function buildSpinScope() {
+            const el = document.getElementById('spinScope');
+            el.replaceChildren();
+            const add = (label, scope, isTag) => {
+                const b = document.createElement('button');
+                const active = sameScope(scope, spinScope);
+                b.type = 'button';
+                b.className = 'chip' + (isTag ? ' tag-chip' : '') + (active ? ' active' : '');
+                b.textContent = label;
+                b.setAttribute('aria-pressed', active ? 'true' : 'false');
+                b.addEventListener('click', () => setSpinScope(scope));
+                el.appendChild(b);
+            };
+            add('全部', { type: 'all' }, false);
+            uniqueRecipeValues('category').forEach(c => add(c, { type: 'cat', value: c }, false));
+            uniqueRecipeValues('tag').forEach(t => add('#' + t, { type: 'tag', value: t }, true));
+        }
+        function setSpinScope(scope) {
+            spinScope = scope;
+            buildSpinScope();
+            resetWheel();
+        }
+
+        function openSpin() {
+            if (loading) return toast('菜谱还在加载…');
+            if (!recipes.length) return toast('还没有菜谱可选');
+            spinScope = { type: 'all' };
+            buildSpinScope();
+            setModal('spinModal', true);
+            requestAnimationFrame(resetWheel);   // 等弹层显示后再量取舞台宽度
+        }
+        function closeSpin() {
+            cancelAnimationFrame(wheelRaf);
+            wheelRaf = null; wheelSpinning = false;
+            setModal('spinModal', false);
+        }
+
+        function wheelRadius() {
+            const stage = document.getElementById('wheelStage');
+            const w = stage.clientWidth || 360;
+            return Math.max(60, w / 2 - 54);
+        }
+        function pileTransform() {
+            const tx = (Math.random() * 20 - 10).toFixed(1);
+            const ty = (Math.random() * 16 - 8).toFixed(1);
+            const rot = (Math.random() * 22 - 11).toFixed(1);
+            return `translate(${tx}px, ${ty}px) rotate(${rot}deg) scale(0.72)`;
+        }
+        function ringTransform(i, slice, r) {
+            return `rotate(${(i * slice).toFixed(3)}deg) translateY(${(-r).toFixed(1)}px)`;
+        }
+
+        // 重置为「摞成一摞」的初始态
+        function resetWheel() {
+            cancelAnimationFrame(wheelRaf);
+            wheelRaf = null; wheelSpinning = false;
+            wheelAngle = 0; wheelWinner = -1;
+            const wheel = document.getElementById('wheel');
+            const hint = document.getElementById('spinScopeHint');
+            wheel.style.transform = 'rotate(0deg)';
+            const list = spinScopeList();
+            if (!list.length) {
+                wheel.replaceChildren();
+                hint.textContent = '这个范围还没有菜，换一个试试';
+                setWheelState('empty');
+                return;
+            }
+            wheelItems = list.length <= WHEEL_MAX ? shuffle(list) : shuffle(list).slice(0, WHEEL_MAX);
+            hint.textContent = list.length > WHEEL_MAX
+                ? `从 ${list.length} 道里随机取 ${WHEEL_MAX} 道上盘`
+                : `从 ${list.length} 道里挑一道`;
+            wheel.replaceChildren();
+            wheelItems.forEach((item, i) => {
+                const card = document.createElement('div');
+                card.className = 'wheel-card';
+                card.dataset.idx = i;
+                card.innerHTML = `<div class="wc-inner"><div class="wc-emoji">${esc(firstEmoji(item.emoji))}</div><div class="wc-title">${esc(item.title)}</div></div>`;
+                card.style.transform = pileTransform();     // 初始摞成一摞
+                wheel.appendChild(card);
+            });
+            setWheelState('idle');
+        }
+
+        // 摞牌 → 展开成圆盘（错峰绽放）
+        function dealToRing() {
+            const cards = [...document.getElementById('wheel').children];
+            const n = cards.length;
+            const slice = 360 / n;
+            const r = wheelRadius();
+            cards.forEach((card, i) => {
+                card.style.transitionDelay = (i * 26) + 'ms';
+                card.style.transform = ringTransform(i, slice, r);
+            });
+            setTimeout(() => cards.forEach(c => { c.style.transitionDelay = '0ms'; }), 26 * n + 700);
+        }
+
+        function spinAction() {
+            if (wheelState === 'idle') startWheelSpin();
+            else if (wheelState === 'spinning') stopWheelSpin();
+        }
+        function startWheelSpin() {
+            if (!wheelItems.length) return;
+            setWheelState('spinning');
+            dealToRing();
+            setTimeout(() => {
+                wheelSpinning = true;
+                wheelSpeed = reduceMotion ? 10 : 15;
+                spinLoop();
+            }, reduceMotion ? 60 : 520);   // 等圆盘展开后再开转
+        }
+        function spinLoop() {
+            wheelAngle += wheelSpeed;
+            document.getElementById('wheel').style.transform = 'rotate(' + wheelAngle + 'deg)';
+            wheelRaf = requestAnimationFrame(spinLoop);
+        }
+        // 点「停」→ 缓缓减速停到某一张，指针指向它
+        function stopWheelSpin() {
+            if (!wheelSpinning) return;
+            cancelAnimationFrame(wheelRaf);
+            wheelRaf = null; wheelSpinning = false;
+            setWheelState('stopping');
+            const n = wheelItems.length;
+            const slice = 360 / n;
+            const w = Math.floor(Math.random() * n);
+            wheelWinner = w;
+            const base = wheelAngle;
+            const turns = (reduceMotion ? 1 : 4) + Math.floor(Math.random() * 2);
+            let target = base + turns * 360;
+            const desiredMod = ((-w * slice) % 360 + 360) % 360;   // 让第 w 张转到正上方（指针处）
+            const curMod = ((target % 360) + 360) % 360;
+            let delta = desiredMod - curMod;
+            if (delta < 0) delta += 360;
+            target += delta;
+            target += (Math.random() * 2 - 1) * slice * 0.28;      // 落点小抖动，仍在该扇区内
+            tweenWheel(base, target, reduceMotion ? 600 : 4200, () => revealWinner(w));
+        }
+        function tweenWheel(from, to, dur, done) {
+            const wheel = document.getElementById('wheel');
+            const t0 = performance.now();
+            (function frame(now) {
+                const p = Math.min(1, (now - t0) / dur);
+                const e = 1 - Math.pow(1 - p, 3);   // easeOutCubic
+                wheelAngle = from + (to - from) * e;
+                wheel.style.transform = 'rotate(' + wheelAngle + 'deg)';
+                if (p < 1) wheelRaf = requestAnimationFrame(frame);
+                else {
+                    wheelAngle = ((to % 360) + 360) % 360;
+                    wheel.style.transform = 'rotate(' + wheelAngle + 'deg)';
+                    if (done) done();
+                }
+            })(performance.now());
+        }
+        function revealWinner(w) {
+            const card = document.querySelector('#wheel .wheel-card[data-idx="' + w + '"]');
+            if (card) card.classList.add('win');
+            const item = wheelItems[w];
+            document.getElementById('spinResultName').textContent =
+                (item.emoji ? firstEmoji(item.emoji) + ' ' : '') + item.title;
+            setWheelState('done');
+        }
+
+        function setWheelState(s) {
+            wheelState = s;
+            const act = document.getElementById('spinActionBtn');
+            const again = document.getElementById('spinAgainBtn');
+            const openB = document.getElementById('spinOpenBtn');
+            const result = document.getElementById('spinResult');
+            act.hidden = false; act.disabled = false;
+            again.hidden = true; openB.hidden = true; result.hidden = true;
+            if (s === 'empty') { act.hidden = true; }
+            else if (s === 'idle') { act.textContent = '开始转 🎡'; }
+            else if (s === 'spinning') { act.textContent = '停 ✋'; }
+            else if (s === 'stopping') { act.textContent = '停下中…'; act.disabled = true; }
+            else if (s === 'done') {
+                act.hidden = true;
+                again.hidden = false; openB.hidden = false; result.hidden = false;
+            }
+        }
+
+        function spinAgain() { resetWheel(); startWheelSpin(); }
+        function spinOpenWinner() {
+            const item = wheelItems[wheelWinner];
+            if (!item) return;
+            closeSpin();
+            openDetail(item.id);
+        }
+        // 弹层打开且非转动中时，窗口尺寸变化重新布盘
+        window.addEventListener('resize', () => {
+            if (!document.getElementById('spinModal').classList.contains('show')) return;
+            if (wheelState === 'idle' || wheelState === 'done' || wheelState === 'empty') resetWheel();
+        });
 
         // --- 启动 ---
         window.addEventListener('load', () => {
