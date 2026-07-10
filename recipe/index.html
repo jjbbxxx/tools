@@ -660,10 +660,10 @@
             border: 0;
             color: #fff;
             white-space: nowrap;
-            background: linear-gradient(120deg, var(--accent), var(--gold));
-            box-shadow: 0 7px 16px rgba(206, 73, 53, 0.2);
+            background: linear-gradient(120deg, #f2865c, #f2ac48);
+            box-shadow: 0 6px 14px rgba(224, 122, 70, 0.26);
         }
-        .spin-open-btn:hover { filter: brightness(1.05); }
+        .spin-open-btn:hover { filter: brightness(1.04); }
 
         /* 今天吃什么 转盘弹层 */
         .spin-modal { width: min(560px, 100%); }
@@ -747,11 +747,13 @@
             box-shadow: 0 12px 30px rgba(206, 73, 53, 0.4);
         }
 
-        .spin-result { margin-top: 8px; text-align: center; }
+        .spin-result { margin: 16px 0 22px; text-align: center; }
         .spin-result-label { color: var(--muted); font-size: 0.82rem; font-weight: 700; }
-        .spin-result-name { margin-top: 3px; font-size: 1.5rem; font-weight: 800; word-break: break-word; }
+        .spin-result-name { margin-top: 5px; font-size: 1.5rem; font-weight: 800; word-break: break-word; }
         .spin-actions { justify-content: center; }
         .spin-actions .btn { min-width: 128px; }
+        .spin-actions .btn-ghost { background: rgba(255, 255, 255, 0.94); border-color: var(--line); color: var(--ink); }
+        .spin-actions .btn-ghost:hover { border-color: #b8c0b7; background: #fff; }
 
         @media (max-width: 720px) {
             body { padding-inline: 16px; }
@@ -1822,16 +1824,27 @@
                 setWheelState('empty');
                 return;
             }
-            wheelItems = list.length <= WHEEL_MAX ? shuffle(list) : shuffle(list).slice(0, WHEEL_MAX);
-            hint.textContent = list.length > WHEEL_MAX
-                ? `从 ${list.length} 道里随机取 ${WHEEL_MAX} 道上盘`
-                : `从 ${list.length} 道里挑一道`;
+            wheelItems = shuffle(list);   // 全部上盘，指针指到谁就吃谁
+            hint.textContent = `从 ${list.length} 道里挑一道，指针指到谁就吃谁`;
+            const n = wheelItems.length;
+            const r = wheelRadius();
+            const per = (2 * Math.PI * r) / n;            // 每张卡沿圆周可占的切向宽度
+            const cardW = Math.max(26, Math.min(78, per * 0.92));
+            const cardH = Math.min(98, cardW * 1.26);
+            const showTitle = cardW >= 52;                // 太密就只留 emoji，中奖名字看底部揭晓
+            const emojiSize = (cardW >= 52 ? 1.5 : cardW >= 38 ? 1.15 : Math.max(0.7, cardW * 0.028)).toFixed(2);
+            const pad = cardW >= 52 ? '8px 6px' : '2px';
+            const rad = cardW >= 52 ? 16 : 10;
             wheel.replaceChildren();
             wheelItems.forEach((item, i) => {
                 const card = document.createElement('div');
                 card.className = 'wheel-card';
                 card.dataset.idx = i;
-                card.innerHTML = `<div class="wc-inner"><div class="wc-emoji">${esc(firstEmoji(item.emoji))}</div><div class="wc-title">${esc(item.title)}</div></div>`;
+                card.style.width = cardW.toFixed(1) + 'px';
+                card.style.height = cardH.toFixed(1) + 'px';
+                card.style.margin = `${(-cardH / 2).toFixed(1)}px 0 0 ${(-cardW / 2).toFixed(1)}px`;
+                const title = showTitle ? `<div class="wc-title">${esc(item.title)}</div>` : '';
+                card.innerHTML = `<div class="wc-inner" style="padding:${pad};border-radius:${rad}px"><div class="wc-emoji" style="font-size:${emojiSize}rem">${esc(firstEmoji(item.emoji))}</div>${title}</div>`;
                 card.style.transform = pileTransform();     // 初始摞成一摞
                 wheel.appendChild(card);
             });
