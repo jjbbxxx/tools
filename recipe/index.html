@@ -420,7 +420,7 @@
         .list-editor { margin-bottom: 10px; }
         .list-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
         .list-row .field { flex: 1; min-width: 0; margin: 0; }
-        .list-row .rm, .step-edit-row .rm {
+        .list-row .rm, .step-edit-row .rm, .prep-row .rm, .sauce-row .rm {
             width: 34px; height: 34px; flex: 0 0 34px;
             border: 0;
             border-radius: 50%;
@@ -430,9 +430,9 @@
             font-size: 0;
             transition: color 0.16s, background 0.16s, transform 0.16s;
         }
-        .list-row .rm::before, .step-edit-row .rm::before { content: "\00d7"; font-size: 1.2rem; line-height: 1; }
-        .list-row .rm:hover, .step-edit-row .rm:hover { color: var(--danger); background: rgba(184, 50, 50, 0.1); }
-        .list-row .rm:active, .step-edit-row .rm:active { transform: scale(0.9); }
+        .list-row .rm::before, .step-edit-row .rm::before, .prep-row .rm::before, .sauce-row .rm::before { content: "\00d7"; font-size: 1.2rem; line-height: 1; }
+        .list-row .rm:hover, .step-edit-row .rm:hover, .prep-row .rm:hover, .sauce-row .rm:hover { color: var(--danger); background: rgba(184, 50, 50, 0.1); }
+        .list-row .rm:active, .step-edit-row .rm:active, .prep-row .rm:active, .sauce-row .rm:active { transform: scale(0.9); }
         .add-row {
             min-height: 34px;
             padding: 6px 4px;
@@ -595,6 +595,26 @@
         .seasoning-list li { position: relative; padding-left: 18px; line-height: 1.55; word-break: break-word; }
         .seasoning-list li::before { content: ""; position: absolute; left: 0; top: 0.64em; width: 7px; height: 7px; border-radius: 50%; background: #b0b7ac; }
 
+        /* 备菜「选食材」下拉：去原生外观 + 自定义箭头，和 .sort-select 一致的现代感 */
+        .prep-row .prep-name {
+            appearance: none; -webkit-appearance: none;
+            padding-right: 32px;
+            cursor: pointer;
+            background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+            background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%;
+            background-size: 5px 5px, 5px 5px;
+            background-repeat: no-repeat;
+        }
+
+        /* 做过次数 +/- 控件（详情）*/
+        .cook-count { display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; padding: 6px 10px 6px 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.5); border: 1px solid var(--line); font-weight: 800; }
+        .cook-count .cc-label { color: var(--muted); font-weight: 600; margin-right: 2px; font-size: 0.86rem; }
+        .cook-count .cc-unit { color: var(--muted); font-weight: 600; font-size: 0.86rem; }
+        .cc-num { min-width: 1.3em; text-align: center; color: var(--accent); font-size: 1.05rem; }
+        .cc-btn { width: 28px; height: 28px; flex: 0 0 28px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: rgba(255, 255, 255, 0.7); color: var(--ink); cursor: pointer; font-size: 1.05rem; line-height: 1; transition: border-color 0.16s, color 0.16s, transform 0.16s; }
+        .cc-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .cc-btn:active { transform: scale(0.9); }
+
         /* 烹饪模式：详情页备菜/料汁/食材/步骤点按勾掉 */
         .cook-hint { color: var(--muted); font-size: 0.72rem; font-weight: 500; }
         .prep-list li, .sauce-list li, .ing-list li, .step-list li { cursor: pointer; transition: color 0.16s, opacity 0.16s; }
@@ -687,6 +707,7 @@
             <select id="sortMode" class="sort-select" aria-label="菜谱排序" onchange="onSort(this.value)">
                 <option value="newest">最近添加</option>
                 <option value="name">按菜名排序</option>
+                <option value="cooked">按次数排序</option>
             </select>
             <button class="btn btn-primary new-btn" onclick="openCreate()">＋ 新建菜谱</button>
             <div class="filters" id="catChips"></div>
@@ -931,11 +952,13 @@
                 return hay.includes(searchQ);
             });
             if (sortMode === 'name') return list.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'));
+            if (sortMode === 'cooked') return list.sort((a, b) => (b.cook_count || 0) - (a.cook_count || 0) || String(b.created_at || '').localeCompare(String(a.created_at || '')));
             return list.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
         }
 
         function recipeMeta(r) {
             const tags = [];
+            if (r.cook_count) tags.push(`<span class="meta-item">做过 ${r.cook_count} 次</span>`);
             if ((r.steps || []).length) tags.push(`<span class="meta-item">${r.steps.length} 个步骤</span>`);
             if ((r.ingredients || []).length) tags.push(`<span class="meta-item">${r.ingredients.length} 种食材</span>`);
             return tags;
@@ -1357,12 +1380,34 @@
                 <h2 class="detail-title">${r.emoji ? esc(r.emoji) + ' ' : ''}${esc(r.title)}</h2>
                 <div class="detail-meta">${meta.join('')}</div>
                 ${tags ? `<div class="detail-tags">${tags}</div>` : ''}
+                <div class="cook-count">
+                    <span class="cc-label">已做</span>
+                    <button class="cc-btn" type="button" onclick="bumpCount(${Number(r.id)}, -1)" aria-label="次数减一">−</button>
+                    <span class="cc-num">${r.cook_count || 0}</span>
+                    <span class="cc-unit">次</span>
+                    <button class="cc-btn" type="button" onclick="bumpCount(${Number(r.id)}, 1)" aria-label="次数加一">＋</button>
+                </div>
                 ${ings}${seasonings}${prep}${sauces}${steps}${notes}`;
             document.getElementById('detailEdit').onclick = () => openEdit(id);
             document.getElementById('detailDelete').onclick = (e) => askDelete(e, id);
             setModal('detailModal', true);
         }
         function closeDetail() { closePopover(); setModal('detailModal', false); }
+
+        // 做过次数 +/-（PATCH 后同步本地并刷新列表）
+        async function bumpCount(id, delta) {
+            const r = recipes.find(x => x.id === id);
+            if (!r) return;
+            const next = Math.max(0, (r.cook_count || 0) + delta);
+            if (next === (r.cook_count || 0)) return;
+            try {
+                const updated = await api('PATCH', '/api/recipe/items/' + id, { cook_count: next });
+                Object.assign(r, updated);
+                const numEl = document.querySelector('#detailBody .cc-num');
+                if (numEl) numEl.textContent = r.cook_count || 0;
+                render();
+            } catch (e) { toast('失败：' + e.message); }
+        }
 
         // --- 删除气泡确认（贴按钮弹出，替代 confirm）---
         function askDelete(ev, id) {

@@ -106,6 +106,7 @@ db.exec(`
     sauces       TEXT NOT NULL DEFAULT '[]',
     notes        TEXT NOT NULL DEFAULT '',
     photo        TEXT NOT NULL DEFAULT '',
+    cook_count   INTEGER NOT NULL DEFAULT 0,
     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_recipes_user ON recipes(user_id, created_at);
@@ -116,6 +117,7 @@ const _recipeCols = db.prepare("PRAGMA table_info(recipes)").all().map((c) => c.
 if (!_recipeCols.includes('prep')) db.exec("ALTER TABLE recipes ADD COLUMN prep TEXT NOT NULL DEFAULT '[]'");
 if (!_recipeCols.includes('sauces')) db.exec("ALTER TABLE recipes ADD COLUMN sauces TEXT NOT NULL DEFAULT '[]'");
 if (!_recipeCols.includes('seasonings')) db.exec("ALTER TABLE recipes ADD COLUMN seasonings TEXT NOT NULL DEFAULT '[]'");
+if (!_recipeCols.includes('cook_count')) db.exec("ALTER TABLE recipes ADD COLUMN cook_count INTEGER NOT NULL DEFAULT 0");
 
 // --- 密码哈希（scrypt，无原生依赖）---
 function hashPassword(pw) {
@@ -191,6 +193,7 @@ function cleanFreq(v) { const s = (v == null ? '' : String(v)).trim(); return ['
 // 菜谱：正整数或 null / 难度 0-2 / 短字符串数组转 JSON / 相对图片路径
 function cleanIntNullable(v, max) { if (v == null || v === '') return null; const n = Number(v); return Number.isInteger(n) && n > 0 && n <= max ? n : null; }
 function cleanDifficulty(v) { const n = Number(v); return (n === 0 || n === 1 || n === 2) ? n : 0; }
+function cleanCookCount(v) { const n = Number(v); return Number.isFinite(n) ? Math.max(0, Math.min(1000000, Math.round(n))) : 0; }
 function cleanStringList(v, maxItems, maxLen) {
   if (!Array.isArray(v)) return '[]';
   const out = v.map((x) => (x == null ? '' : String(x).trim().slice(0, maxLen))).filter((s) => s.length > 0).slice(0, maxItems);
@@ -495,6 +498,7 @@ app.patch('/api/recipe/items/:id', requireAuth, wrap((req, res) => {
   const steps = b.steps !== undefined ? cleanStringList(b.steps, 60, 500) : ex.steps;
   const prep = b.prep !== undefined ? cleanPairList(b.prep, 'action') : ex.prep;
   const sauces = b.sauces !== undefined ? cleanPairList(b.sauces, 'mix') : ex.sauces;
+  const cook_count = b.cook_count !== undefined ? cleanCookCount(b.cook_count) : ex.cook_count;
   const notes = b.notes !== undefined ? cleanNote(b.notes) : ex.notes;
   let photo = ex.photo;
   if (b.photo !== undefined) {
@@ -502,8 +506,8 @@ app.patch('/api/recipe/items/:id', requireAuth, wrap((req, res) => {
     if (ex.photo && ex.photo !== photo) unlinkPhoto(ex.photo);
   }
   db.prepare(`UPDATE recipes SET title = ?, emoji = ?, category = ?, cook_minutes = ?, servings = ?, difficulty = ?,
-    tags = ?, ingredients = ?, seasonings = ?, steps = ?, prep = ?, sauces = ?, notes = ?, photo = ? WHERE id = ? AND user_id = ?`).run(
-    title, emoji, category, cook, servings, difficulty, tags, ingredients, seasonings, steps, prep, sauces, notes, photo, id, req.uid);
+    tags = ?, ingredients = ?, seasonings = ?, steps = ?, prep = ?, sauces = ?, notes = ?, photo = ?, cook_count = ? WHERE id = ? AND user_id = ?`).run(
+    title, emoji, category, cook, servings, difficulty, tags, ingredients, seasonings, steps, prep, sauces, notes, photo, cook_count, id, req.uid);
   res.json(recipeOut(db.prepare('SELECT * FROM recipes WHERE id = ?').get(id)));
 }));
 
