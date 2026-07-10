@@ -667,7 +667,8 @@
 
         /* 今天吃什么 转盘弹层 */
         .spin-modal { width: min(560px, 100%); }
-        .spin-body { padding: 6px 22px 26px; }
+        .spin-body { padding: 6px 22px 6px; }
+        .spin-body::after { content: ""; display: block; height: 24px; }   /* 实体占位：iOS 滚动容器会吞掉尾部 margin/padding，用它保底与按钮栏的间距 */
         .spin-scope { display: flex; gap: 8px; overflow-x: auto; padding: 6px 0 10px; scrollbar-width: none; }
         .spin-scope::-webkit-scrollbar { display: none; }
         .spin-scope .chip { flex: 0 0 auto; }
@@ -747,7 +748,7 @@
             box-shadow: 0 12px 30px rgba(206, 73, 53, 0.4);
         }
 
-        .spin-result { margin: 16px 0 22px; text-align: center; }
+        .spin-result { margin: 16px 0 0; text-align: center; }
         .spin-result-label { color: var(--muted); font-size: 0.82rem; font-weight: 700; }
         .spin-result-name { margin-top: 5px; font-size: 1.5rem; font-weight: 800; word-break: break-word; }
         .spin-actions { justify-content: center; }
