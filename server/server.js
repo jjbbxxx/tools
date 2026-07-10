@@ -101,6 +101,7 @@ db.exec(`
     cook_minutes INTEGER,
     servings     INTEGER,
     difficulty   INTEGER NOT NULL DEFAULT 0,
+    categories   TEXT NOT NULL DEFAULT '[]',
     tags         TEXT NOT NULL DEFAULT '[]',
     ingredients  TEXT NOT NULL DEFAULT '[]',
     seasonings   TEXT NOT NULL DEFAULT '[]',
@@ -121,6 +122,13 @@ if (!_recipeCols.includes('prep')) db.exec("ALTER TABLE recipes ADD COLUMN prep 
 if (!_recipeCols.includes('sauces')) db.exec("ALTER TABLE recipes ADD COLUMN sauces TEXT NOT NULL DEFAULT '[]'");
 if (!_recipeCols.includes('seasonings')) db.exec("ALTER TABLE recipes ADD COLUMN seasonings TEXT NOT NULL DEFAULT '[]'");
 if (!_recipeCols.includes('cook_count')) db.exec("ALTER TABLE recipes ADD COLUMN cook_count INTEGER NOT NULL DEFAULT 0");
+// 分类改为多选（列表）：新增 categories，并把旧的单个 category 迁移进去
+if (!_recipeCols.includes('categories')) {
+  db.exec("ALTER TABLE recipes ADD COLUMN categories TEXT NOT NULL DEFAULT '[]'");
+  const _crows = db.prepare("SELECT id, category FROM recipes WHERE category != ''").all();
+  const _cupd = db.prepare("UPDATE recipes SET categories = ? WHERE id = ?");
+  for (const _r of _crows) _cupd.run(JSON.stringify([_r.category]), _r.id);
+}
 
 // 用户管理员标记：迁移 + 确保 OWNER 始终是管理员
 const _userCols = db.prepare("PRAGMA table_info(users)").all().map((c) => c.name);
@@ -219,7 +227,7 @@ function cleanPairList(v, secondKey) {
   return JSON.stringify(out);
 }
 function recipeOut(r) {
-  return { ...r, tags: JSON.parse(r.tags || '[]'), ingredients: JSON.parse(r.ingredients || '[]'), seasonings: JSON.parse(r.seasonings || '[]'), steps: JSON.parse(r.steps || '[]'), prep: JSON.parse(r.prep || '[]'), sauces: JSON.parse(r.sauces || '[]') };
+  return { ...r, categories: JSON.parse(r.categories || '[]'), tags: JSON.parse(r.tags || '[]'), ingredients: JSON.parse(r.ingredients || '[]'), seasonings: JSON.parse(r.seasonings || '[]'), steps: JSON.parse(r.steps || '[]'), prep: JSON.parse(r.prep || '[]'), sauces: JSON.parse(r.sauces || '[]') };
 }
 // 取单条菜谱并带上传者用户名（owner_name）
 function recipeWithOwner(id) {
@@ -526,9 +534,9 @@ app.post('/api/recipe/items', requireAdmin, wrap((req, res) => {
   const title = cleanName(b.title);
   if (!title) return res.status(400).json({ error: '菜名必填（1-100 字）' });
   const info = db.prepare(`INSERT INTO recipes
-    (user_id, title, emoji, category, cook_minutes, servings, difficulty, tags, ingredients, seasonings, steps, prep, sauces, notes, photo)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-    req.uid, title, cleanEmoji(b.emoji), cleanCategory(b.category),
+    (user_id, title, emoji, category, categories, cook_minutes, servings, difficulty, tags, ingredients, seasonings, steps, prep, sauces, notes, photo)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    req.uid, title, cleanEmoji(b.emoji), cleanCategory(b.category), cleanStringList(b.categories, 20, 30),
     cleanIntNullable(b.cook_minutes, 100000), cleanIntNullable(b.servings, 999), cleanDifficulty(b.difficulty),
     cleanStringList(b.tags, 20, 30), cleanStringList(b.ingredients, 60, 200), cleanStringList(b.seasonings, 60, 200), cleanStringList(b.steps, 60, 500),
     cleanPairList(b.prep, 'action'), cleanPairList(b.sauces, 'mix'), cleanNote(b.notes), cleanPhotoPath(b.photo));
@@ -545,6 +553,7 @@ app.patch('/api/recipe/items/:id', requireAdmin, wrap((req, res) => {
   if (!title) return res.status(400).json({ error: '菜名无效' });
   const emoji = b.emoji !== undefined ? cleanEmoji(b.emoji) : ex.emoji;
   const category = b.category !== undefined ? cleanCategory(b.category) : ex.category;
+  const categories = b.categories !== undefined ? cleanStringList(b.categories, 20, 30) : ex.categories;
   const cook = b.cook_minutes !== undefined ? cleanIntNullable(b.cook_minutes, 100000) : ex.cook_minutes;
   const servings = b.servings !== undefined ? cleanIntNullable(b.servings, 999) : ex.servings;
   const difficulty = b.difficulty !== undefined ? cleanDifficulty(b.difficulty) : ex.difficulty;
@@ -561,9 +570,9 @@ app.patch('/api/recipe/items/:id', requireAdmin, wrap((req, res) => {
     photo = cleanPhotoPath(b.photo);
     if (ex.photo && ex.photo !== photo) unlinkPhoto(ex.photo);
   }
-  db.prepare(`UPDATE recipes SET title = ?, emoji = ?, category = ?, cook_minutes = ?, servings = ?, difficulty = ?,
+  db.prepare(`UPDATE recipes SET title = ?, emoji = ?, category = ?, categories = ?, cook_minutes = ?, servings = ?, difficulty = ?,
     tags = ?, ingredients = ?, seasonings = ?, steps = ?, prep = ?, sauces = ?, notes = ?, photo = ?, cook_count = ? WHERE id = ?`).run(
-    title, emoji, category, cook, servings, difficulty, tags, ingredients, seasonings, steps, prep, sauces, notes, photo, cook_count, id);
+    title, emoji, category, categories, cook, servings, difficulty, tags, ingredients, seasonings, steps, prep, sauces, notes, photo, cook_count, id);
   res.json(recipeOut(recipeWithOwner(id)));
 }));
 

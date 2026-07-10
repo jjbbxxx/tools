@@ -765,10 +765,9 @@
                             <input id="fEmoji" class="field" placeholder="🍅🥚🔥" maxlength="40">
                         </div>
                     </div>
-                    <label class="field-lbl" for="fCategory">分类</label>
-                    <input id="fCategory" class="field" placeholder="选填，如 家常菜 / 汤 / 甜点" maxlength="30"
-                        oninput="renderQuickChoices()">
+                    <label class="field-lbl">分类（可多个）</label>
                     <div id="fCategoryChoices" class="quick-options" aria-label="已有分类" hidden></div>
+                    <div id="fCategories" class="list-editor"></div>
                 </section>
 
                 <section class="form-section">
@@ -933,7 +932,7 @@
             try {
                 recipes = await api('GET', '/api/recipe/items');
                 renderChips();
-                const categoryCount = new Set(recipes.map(r => r.category).filter(Boolean)).size;
+                const categoryCount = new Set(recipes.flatMap(r => r.categories || []).filter(Boolean)).size;
                 document.getElementById('subline').textContent = recipes.length
                     ? `${recipes.length} 道收藏 · ${categoryCount} 个分类`
                     : '收藏家常菜，随时翻看怎么做';
@@ -946,7 +945,7 @@
         }
 
         function renderChips() {
-            const cats = [...new Set(recipes.map(r => r.category).filter(Boolean))]
+            const cats = [...new Set(recipes.flatMap(r => r.categories || []).filter(Boolean))]
                 .sort((a, b) => a.localeCompare(b, 'zh-CN'));
             const el = document.getElementById('catChips');
             el.replaceChildren();
@@ -973,9 +972,9 @@
 
         function visible() {
             const list = recipes.filter(r => {
-                if (catFilter && r.category !== catFilter) return false;
+                if (catFilter && !(r.categories || []).includes(catFilter)) return false;
                 if (!searchQ) return true;
-                const hay = [r.title, r.category, ...(r.tags || []), ...(r.ingredients || []), ...(r.seasonings || []),
+                const hay = [r.title, ...(r.categories || []), ...(r.tags || []), ...(r.ingredients || []), ...(r.seasonings || []),
                     ...(r.prep || []).flatMap(p => [p.name, p.action]),
                     ...(r.sauces || []).flatMap(s => [s.name, s.mix])]
                     .join(' ').toLowerCase();
@@ -1021,7 +1020,7 @@
                         ${cover}
                     </div>
                     <div class="rbody">
-                        <div class="card-category">${esc(r.category || '未分类')}</div>
+                        <div class="card-category">${esc((r.categories || []).join(' · ') || '未分类')}</div>
                         <div class="rtitle">${r.emoji ? esc(r.emoji) + ' ' : ''}${esc(r.title)}</div>
                         <div class="rmeta">${cardMeta.join('<span class="meta-dot"></span>')}</div>
                     </div>
@@ -1079,9 +1078,9 @@
             inputs[inputs.length - 1].focus();
         }
         function removeRow(btn) {
-            const wasTag = btn.closest('#fTags');
+            const inChoice = btn.closest('#fTags, #fCategories');
             btn.closest('.list-row').remove();
-            if (wasTag) renderQuickChoices();
+            if (inChoice) renderQuickChoices();
         }
         function collectList(containerId) {
             return [...document.querySelectorAll('#' + containerId + ' .list-row .field')]
@@ -1091,16 +1090,16 @@
         // --- 已有分类 / 标签快捷选择 ---
         function uniqueRecipeValues(key) {
             const values = key === 'category'
-                ? recipes.map(recipe => recipe.category)
+                ? recipes.flatMap(recipe => recipe.categories || [])
                 : recipes.flatMap(recipe => recipe.tags || []);
             return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))]
                 .sort((a, b) => a.localeCompare(b, 'zh-CN'));
         }
         function renderQuickChoices() {
-            const category = document.getElementById('fCategory').value.trim();
+            const cats = collectList('fCategories');
             const tags = collectList('fTags');
-            renderQuickChoiceList('fCategoryChoices', uniqueRecipeValues('category'), category, chooseCategory);
-            renderQuickChoiceList('fTagChoices', uniqueRecipeValues('tag'), tags, addExistingTag);
+            renderQuickChoiceList('fCategoryChoices', uniqueRecipeValues('category'), cats, (v) => addExistingValue('fCategories', v));
+            renderQuickChoiceList('fTagChoices', uniqueRecipeValues('tag'), tags, (v) => addExistingValue('fTags', v));
         }
         function renderQuickChoiceList(id, values, selected, onChoose) {
             const el = document.getElementById(id);
@@ -1117,15 +1116,12 @@
                 el.appendChild(button);
             });
         }
-        function chooseCategory(value) {
-            document.getElementById('fCategory').value = value;
-            renderQuickChoices();
-        }
-        function addExistingTag(value) {
-            const inputs = [...document.querySelectorAll('#fTags .list-row .field')];
+        // 快捷选择：点已有分类/标签 → 在对应编辑器里增/删该项
+        function addExistingValue(containerId, value) {
+            const inputs = [...document.querySelectorAll('#' + containerId + ' .list-row .field')];
             const existing = inputs.find(input => input.value.trim() === value);
             if (existing) {
-                const rows = document.querySelectorAll('#fTags .list-row');
+                const rows = document.querySelectorAll('#' + containerId + ' .list-row');
                 if (rows.length === 1) existing.value = '';
                 else existing.closest('.list-row').remove();
                 renderQuickChoices();
@@ -1133,10 +1129,7 @@
             }
             const empty = inputs.find(input => !input.value.trim());
             if (empty) empty.value = value;
-            else {
-                const editor = document.getElementById('fTags');
-                editor.querySelector('.add-row').insertAdjacentHTML('beforebegin', rowHTML(value));
-            }
+            else document.getElementById(containerId).querySelector('.add-row').insertAdjacentHTML('beforebegin', rowHTML(value));
             renderQuickChoices();
         }
 
@@ -1312,7 +1305,7 @@
             document.getElementById('formTitle').textContent = '新建菜谱';
             document.getElementById('fTitle').value = '';
             document.getElementById('fEmoji').value = '';
-            document.getElementById('fCategory').value = '';
+            renderList('fCategories', []);
             document.getElementById('fNotes').value = '';
             removePhoto();
             renderList('fTags', []);
@@ -1332,7 +1325,7 @@
             document.getElementById('formTitle').textContent = '编辑菜谱';
             document.getElementById('fTitle').value = r.title;
             document.getElementById('fEmoji').value = r.emoji || '';
-            document.getElementById('fCategory').value = r.category || '';
+            renderList('fCategories', r.categories || []);
             document.getElementById('fNotes').value = r.notes || '';
             if (r.photo) showPreview(API + r.photo); else removePhoto();
             renderList('fTags', r.tags);
@@ -1370,7 +1363,7 @@
                 const body = {
                     title,
                     emoji: document.getElementById('fEmoji').value.trim(),
-                    category: document.getElementById('fCategory').value.trim(),
+                    categories: collectList('fCategories'),
                     tags: collectList('fTags'),
                     ingredients: collectList('fIngredients'),
                     seasonings: collectList('fSeasonings'),
@@ -1417,7 +1410,7 @@
                 ? `<section class="detail-section"><h3 class="sec-label">备注</h3><div class="detail-notes">${esc(r.notes)}</div></section>` : '';
             document.getElementById('detailBody').innerHTML = `
                 ${photo}
-                <div class="card-category">${esc(r.category || '未分类')}</div>
+                <div class="card-category">${esc((r.categories || []).join(' · ') || '未分类')}</div>
                 <h2 class="detail-title">${r.emoji ? esc(r.emoji) + ' ' : ''}${esc(r.title)}</h2>
                 <div class="detail-meta">${meta.join('')}</div>
                 ${tags ? `<div class="detail-tags">${tags}</div>` : ''}
@@ -1518,21 +1511,13 @@
             e.preventDefault();
             toggleCookItem(e.target);
         });
-        document.querySelectorAll('.overlay').forEach(o => {
-            o.addEventListener('click', (e) => {
-                if (e.target !== o || isSaving) return;
-                if (document.getElementById('popover').classList.contains('show')) return;
-                if (o.id === 'formModal') closeForm();
-                else if (o.id === 'adminsModal') closeAdmins();
-                else closeDetail();
-            });
-        });
+        // 弹窗只能用右上角关闭键关闭：不再响应点击空白处，避免误触丢失已编辑内容
         document.addEventListener('keydown', (e) => {
             if (e.key !== 'Escape' || isSaving) return;
             if (document.getElementById('popover').classList.contains('show')) { closePopover(); return; }
             if (document.getElementById('adminsModal').classList.contains('show')) closeAdmins();
-            else if (document.getElementById('formModal').classList.contains('show')) closeForm();
             else if (document.getElementById('detailModal').classList.contains('show')) closeDetail();
+            // 表单弹窗不响应 Esc：只能用右上角关闭键，避免误触丢失编辑
         });
 
         // --- 登录 / 权限 UI（公开查看；仅管理员显示增删改）---
