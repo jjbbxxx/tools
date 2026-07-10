@@ -186,8 +186,8 @@
         .btn-primary:hover { background: var(--accent-dark); }
         .btn-ghost { background: rgba(255, 255, 255, 0.42); border-color: rgba(255, 255, 255, 0.65); }
         .btn-ghost:hover { border-color: rgba(255, 255, 255, 0.88); background: rgba(255, 255, 255, 0.62); }
-        .btn-danger { color: var(--danger); background: #fff7f6; border-color: #efceca; }
-        .btn-danger:hover { background: #feecea; }
+        .btn-danger { color: var(--muted); background: transparent; border-color: transparent; box-shadow: none; }
+        .btn-danger:hover { color: var(--danger); background: rgba(184, 50, 50, 0.08); }
         .btn-block { width: 100%; }
         .new-btn { min-height: 46px; white-space: nowrap; }
 
@@ -348,8 +348,9 @@
             align-items: center;
             justify-content: center;
             padding: 24px;
-            background: rgba(21, 25, 22, 0.5);
-            backdrop-filter: blur(3px);
+            background: rgba(21, 25, 22, 0.38);
+            backdrop-filter: blur(10px) saturate(115%);
+            -webkit-backdrop-filter: blur(10px) saturate(115%);
         }
         .overlay.show { display: flex; }
         .modal {
@@ -358,57 +359,132 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            border: 1px solid rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.76);
             border-radius: var(--radius-modal);
-            background: rgba(248, 250, 248, 0.78);
-            backdrop-filter: blur(34px) saturate(165%);
-            -webkit-backdrop-filter: blur(34px) saturate(165%);
-            box-shadow: 0 24px 70px rgba(15, 21, 17, 0.24);
+            background: rgba(255, 255, 255, 0.68);
+            backdrop-filter: blur(42px) saturate(170%);
+            -webkit-backdrop-filter: blur(42px) saturate(170%);
+            box-shadow:
+                0 28px 80px rgba(15, 21, 17, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9);
         }
         .detail-modal { width: min(760px, 100%); }
         .modal-head {
-            min-height: 70px;
+            min-height: 78px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 18px;
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--line);
-            background: rgba(255, 255, 255, 0.42);
+            padding: 18px 24px 14px;
+            border-bottom: 0;
+            background: rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
         }
+        .modal-head .icon-btn {
+            width: 38px; height: 38px;
+            border: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.55);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+        }
+        .modal-head .icon-btn:hover { background: rgba(255, 255, 255, 0.78); box-shadow: none; }
         .modal-kicker { color: var(--green); font-size: 0.7rem; font-weight: 800; }
-        .modal h2 { margin: 2px 0 0; font-size: 1.25rem; }
-        .modal-scroll { overflow-y: auto; overscroll-behavior: contain; }
-        .form-content { padding: 8px 22px 24px; }
-        .form-section { padding: 20px 0 8px; border-bottom: 1px solid var(--line); }
-        .form-section:last-child { border-bottom: 0; }
-        .section-heading { margin: 0 0 14px; font-size: 0.95rem; }
+        .modal h2 { margin: 2px 0 0; font-size: 1.32rem; }
+        .modal-scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+        .form-content { padding: 2px 24px 32px; }
+        .form-section { padding: 16px 0 4px; border-bottom: 0; }
+        .form-section + .form-section { padding-top: 28px; }
+        .section-heading { margin: 0 0 13px; font-size: 0.94rem; }
         .section-heading span { color: var(--muted); font-size: 0.78rem; font-weight: 500; }
         .field-lbl { display: block; margin: 0 0 6px; color: var(--muted); font-size: 0.76rem; font-weight: 700; }
+        .modal .field {
+            border-color: rgba(255, 255, 255, 0.72);
+            background: rgba(255, 255, 255, 0.56);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+        }
+        .modal .field:focus {
+            border-color: rgba(206, 73, 53, 0.58);
+            background: rgba(255, 255, 255, 0.74);
+        }
         .row { display: flex; gap: 12px; }
         .col { flex: 1; min-width: 0; }
         .modal-actions {
             display: flex;
             justify-content: flex-end;
             gap: 10px;
-            padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
-            border-top: 1px solid var(--line);
-            background: rgba(255, 255, 255, 0.48);
+            padding: 13px 20px calc(13px + env(safe-area-inset-bottom));
+            border-top: 1px solid rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(24px) saturate(150%);
+            -webkit-backdrop-filter: blur(24px) saturate(150%);
         }
         .modal-actions .btn { min-width: 112px; }
 
         .list-editor { margin-bottom: 10px; }
         .list-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
         .list-row .field { flex: 1; min-width: 0; margin: 0; }
-        .list-row .rm {
-            width: 42px; height: 46px; flex: 0 0 42px;
-            border: 1px solid #efd4d0;
-            border-radius: 13px;
-            background: #fff7f6;
-            color: var(--danger);
+        .list-row .rm, .step-edit-row .rm {
+            width: 34px; height: 34px; flex: 0 0 34px;
+            border: 0;
+            border-radius: 50%;
+            background: rgba(54, 61, 56, 0.07);
+            color: #7e857f;
             cursor: pointer;
+            font-size: 0;
+            transition: color 0.16s, background 0.16s, transform 0.16s;
         }
-        .add-row { min-height: 38px; padding: 8px 12px; font-size: 0.82rem; }
+        .list-row .rm::before, .step-edit-row .rm::before { content: "\00d7"; font-size: 1.2rem; line-height: 1; }
+        .list-row .rm:hover, .step-edit-row .rm:hover { color: var(--danger); background: rgba(184, 50, 50, 0.1); }
+        .list-row .rm:active, .step-edit-row .rm:active { transform: scale(0.9); }
+        .add-row {
+            min-height: 34px;
+            padding: 6px 4px;
+            border: 0;
+            background: transparent;
+            color: var(--green);
+            box-shadow: none;
+            font-size: 0.82rem;
+        }
+        .add-row:hover { background: rgba(47, 107, 79, 0.08); }
+
+        .step-editor { margin-bottom: 8px; }
+        .step-edit-row {
+            position: relative;
+            display: grid;
+            grid-template-columns: 32px minmax(0, 1fr) 34px;
+            gap: 10px;
+            align-items: start;
+            margin-bottom: 12px;
+        }
+        .step-edit-row:not(:last-of-type)::after {
+            content: "";
+            position: absolute;
+            left: 15px;
+            top: 35px;
+            bottom: -10px;
+            width: 2px;
+            border-radius: 2px;
+            background: rgba(206, 73, 53, 0.16);
+        }
+        .step-number {
+            width: 32px; height: 32px;
+            display: grid; place-items: center;
+            border-radius: 50%;
+            background: var(--accent);
+            color: #fff;
+            font-size: 0.78rem;
+            font-weight: 800;
+            box-shadow: 0 5px 12px rgba(206, 73, 53, 0.16);
+        }
+        .step-field {
+            min-height: 72px !important;
+            margin: 0 !important;
+            resize: vertical;
+            line-height: 1.55;
+        }
+        .step-edit-row .rm { margin-top: 1px; }
+        .add-step { margin-left: 42px; }
 
         .photo-pick { margin-bottom: 8px; }
         .file-btn {
@@ -508,6 +584,10 @@
             .modal-actions .btn { min-width: 0; flex: 1; }
             .detail-ops { flex-wrap: wrap; }
             .detail-ops .btn-danger { margin-right: 0; }
+            .step-edit-row { grid-template-columns: 30px minmax(0, 1fr) 34px; gap: 8px; }
+            .step-number { width: 30px; height: 30px; }
+            .step-edit-row:not(:last-of-type)::after { left: 14px; top: 33px; }
+            .add-step { margin-left: 38px; }
         }
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
@@ -541,7 +621,6 @@
             <select id="sortMode" class="sort-select" aria-label="菜谱排序" onchange="onSort(this.value)">
                 <option value="newest">最近添加</option>
                 <option value="name">按菜名排序</option>
-                <option value="time">按烹饪时长</option>
             </select>
             <button class="btn btn-primary new-btn" onclick="openCreate()">＋ 新建菜谱</button>
             <div class="filters" id="catChips"></div>
@@ -588,10 +667,6 @@
                     <input id="fCategory" class="field" placeholder="选填，如 家常菜 / 汤 / 甜点" maxlength="30">
                     <div class="row">
                         <div class="col">
-                            <label class="field-lbl" for="fCook">烹饪时长（分钟）</label>
-                            <input id="fCook" class="field" type="number" min="1" placeholder="选填">
-                        </div>
-                        <div class="col">
                             <label class="field-lbl" for="fServings">份量（人数）</label>
                             <input id="fServings" class="field" type="number" min="1" placeholder="选填">
                         </div>
@@ -632,7 +707,7 @@
 
                 <section class="form-section">
                     <h3 class="section-heading">烹饪步骤</h3>
-                    <div id="fSteps" class="list-editor"></div>
+                    <div id="fSteps" class="step-editor"></div>
                 </section>
 
                 <section class="form-section">
@@ -656,7 +731,7 @@
             </div>
             <div id="detailBody" class="modal-scroll detail-scroll"></div>
             <div class="modal-actions detail-ops">
-                <button class="btn btn-danger" id="detailDelete">删除</button>
+                <button class="btn btn-danger" id="detailDelete">删除菜谱</button>
                 <button class="btn btn-ghost" id="detailEdit">编辑</button>
                 <button class="btn btn-primary" onclick="closeDetail()">完成</button>
             </div>
@@ -775,13 +850,11 @@
                 return hay.includes(searchQ);
             });
             if (sortMode === 'name') return list.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'));
-            if (sortMode === 'time') return list.sort((a, b) => (a.cook_minutes || Infinity) - (b.cook_minutes || Infinity));
             return list.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
         }
 
         function metaTags(r) {
             const tags = [];
-            if (r.cook_minutes) tags.push(`<span class="meta-item">◷ ${r.cook_minutes} 分钟</span>`);
             if (r.servings) tags.push(`<span class="meta-item">${r.servings} 人份</span>`);
             tags.push(`<span class="meta-item">${DIFF[r.difficulty] || '简单'}</span>`);
             return tags;
@@ -793,7 +866,7 @@
                 : `<div class="cover ph">${esc(r.emoji || '🍽')}</div>`;
             const difficulty = Number(r.difficulty) || 0;
             const cardMeta = [];
-            if (r.cook_minutes) cardMeta.push(`<span class="meta-item">◷ ${r.cook_minutes} 分钟</span>`);
+            if ((r.steps || []).length) cardMeta.push(`<span class="meta-item">${r.steps.length} 个步骤</span>`);
             if (r.servings) cardMeta.push(`<span class="meta-item">${r.servings} 人份</span>`);
             return `
                 <article class="rcard glass" data-recipe-id="${Number(r.id)}" role="button" tabindex="0"
@@ -844,7 +917,7 @@
         function rowHTML(val) {
             return `<div class="list-row">
                 <input class="field" value="${esc(val)}">
-                <button type="button" class="rm" onclick="removeRow(this)">✕</button>
+                <button type="button" class="rm" onclick="removeRow(this)" aria-label="删除这一行" title="删除这一行">✕</button>
             </div>`;
         }
         function renderList(containerId, items) {
@@ -864,6 +937,41 @@
         function collectList(containerId) {
             return [...document.querySelectorAll('#' + containerId + ' .list-row .field')]
                 .map(i => i.value.trim()).filter(Boolean);
+        }
+
+        // --- 分步编辑器 ---
+        function stepRowHTML(val, index) {
+            return `<div class="step-edit-row">
+                <div class="step-number" aria-hidden="true">${index + 1}</div>
+                <textarea class="field step-field" rows="2" placeholder="写下这一步">${esc(val)}</textarea>
+                <button type="button" class="rm" onclick="removeStep(this)" aria-label="删除这一步" title="删除这一步">✕</button>
+            </div>`;
+        }
+        function renderSteps(items) {
+            const el = document.getElementById('fSteps');
+            const steps = items && items.length ? items : [''];
+            el.innerHTML = steps.map(stepRowHTML).join('') +
+                '<button type="button" class="btn add-row add-step" onclick="addStep()">＋ 添加下一步</button>';
+        }
+        function addStep() {
+            const el = document.getElementById('fSteps');
+            const button = el.querySelector('.add-step');
+            const index = el.querySelectorAll('.step-edit-row').length;
+            button.insertAdjacentHTML('beforebegin', stepRowHTML('', index));
+            const fields = el.querySelectorAll('.step-field');
+            fields[fields.length - 1].focus();
+        }
+        function removeStep(button) {
+            const el = document.getElementById('fSteps');
+            button.closest('.step-edit-row').remove();
+            if (!el.querySelector('.step-edit-row')) {
+                el.querySelector('.add-step').insertAdjacentHTML('beforebegin', stepRowHTML('', 0));
+            }
+            el.querySelectorAll('.step-number').forEach((number, index) => { number.textContent = index + 1; });
+        }
+        function collectSteps() {
+            return [...document.querySelectorAll('#fSteps .step-field')]
+                .map(field => field.value.trim()).filter(Boolean);
         }
 
         // --- 照片：选图先本地压缩预览，保存时才上传 ---
@@ -933,14 +1041,13 @@
             document.getElementById('fTitle').value = '';
             document.getElementById('fEmoji').value = '';
             document.getElementById('fCategory').value = '';
-            document.getElementById('fCook').value = '';
             document.getElementById('fServings').value = '';
             document.getElementById('fDifficulty').value = '0';
             document.getElementById('fNotes').value = '';
             removePhoto();
             renderList('fTags', []);
             renderList('fIngredients', []);
-            renderList('fSteps', []);
+            renderSteps([]);
             setModal('formModal', true);
             setTimeout(() => document.getElementById('fTitle').focus(), 0);
         }
@@ -952,14 +1059,13 @@
             document.getElementById('fTitle').value = r.title;
             document.getElementById('fEmoji').value = r.emoji || '';
             document.getElementById('fCategory').value = r.category || '';
-            document.getElementById('fCook').value = r.cook_minutes || '';
             document.getElementById('fServings').value = r.servings || '';
             document.getElementById('fDifficulty').value = String(r.difficulty || 0);
             document.getElementById('fNotes').value = r.notes || '';
             if (r.photo) showPreview(API + r.photo); else removePhoto();
             renderList('fTags', r.tags);
             renderList('fIngredients', r.ingredients);
-            renderList('fSteps', r.steps);
+            renderSteps(r.steps);
             closeDetail();
             setModal('formModal', true);
             setTimeout(() => document.getElementById('fTitle').focus(), 0);
@@ -973,7 +1079,6 @@
             if (isSaving) return;
             const title = document.getElementById('fTitle').value.trim();
             if (!title) return toast('请填菜名');
-            const cook = document.getElementById('fCook').value;
             const servings = document.getElementById('fServings').value;
             const wasEditing = editingId !== null;
             const saveBtn = document.getElementById('saveBtn');
@@ -991,12 +1096,11 @@
                     title,
                     emoji: document.getElementById('fEmoji').value.trim(),
                     category: document.getElementById('fCategory').value.trim(),
-                    cook_minutes: cook ? Number(cook) : null,
                     servings: servings ? Number(servings) : null,
                     difficulty: Number(document.getElementById('fDifficulty').value),
                     tags: collectList('fTags'),
                     ingredients: collectList('fIngredients'),
-                    steps: collectList('fSteps'),
+                    steps: collectSteps(),
                     notes: document.getElementById('fNotes').value.trim(),
                     photo,
                 };
