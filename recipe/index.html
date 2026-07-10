@@ -748,9 +748,30 @@
             box-shadow: 0 12px 30px rgba(206, 73, 53, 0.4);
         }
 
-        .spin-result { margin: 16px 0 0; text-align: center; }
-        .spin-result-label { color: var(--muted); font-size: 0.82rem; font-weight: 700; }
-        .spin-result-name { margin-top: 5px; font-size: 1.5rem; font-weight: 800; word-break: break-word; }
+        /* 揭晓：中奖那张放大到转盘中央，盘与指针退到背景 */
+        .wheel { transition: opacity 0.35s ease; }
+        .wheel-stage.revealed .wheel-pointer,
+        .wheel-stage.revealed .wheel-hub { opacity: 0; transition: opacity 0.3s; }
+        .wheel-winner {
+            position: absolute; top: 50%; left: 50%; z-index: 8;
+            width: min(64%, 230px);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 6px;
+            padding: 24px 18px;
+            border-radius: 26px;
+            text-align: center;
+            background: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 22px 52px rgba(206, 73, 53, 0.34), 0 6px 16px rgba(31, 40, 33, 0.16);
+            opacity: 0;
+            pointer-events: none;
+            transform: translate(-50%, -50%) scale(0.32);
+            transition: transform 0.46s cubic-bezier(0.22, 1.3, 0.36, 1), opacity 0.3s;
+        }
+        .wheel-winner.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        .ww-label { color: var(--muted); font-size: 0.82rem; font-weight: 800; }
+        .ww-emoji { font-size: 3rem; line-height: 1; }
+        .ww-name { font-size: 1.42rem; font-weight: 800; color: var(--ink); word-break: break-word; }
         .spin-actions { justify-content: center; }
         .spin-actions .btn { min-width: 128px; }
         .spin-actions .btn-ghost { background: rgba(255, 255, 255, 0.94); border-color: var(--line); color: var(--ink); }
@@ -968,10 +989,11 @@
                     <div class="wheel-pointer" aria-hidden="true"></div>
                     <div class="wheel" id="wheel"></div>
                     <div class="wheel-hub" aria-hidden="true">🍽</div>
-                </div>
-                <div class="spin-result" id="spinResult" aria-live="polite" hidden>
-                    <div class="spin-result-label">今天就吃</div>
-                    <div class="spin-result-name" id="spinResultName"></div>
+                    <div class="wheel-winner" id="wheelWinner" aria-live="polite">
+                        <div class="ww-label">今天就吃</div>
+                        <div class="ww-emoji" id="wwEmoji"></div>
+                        <div class="ww-name" id="wwName"></div>
+                    </div>
                 </div>
             </div>
             <div class="modal-actions spin-actions">
@@ -1818,6 +1840,9 @@
             const wheel = document.getElementById('wheel');
             const hint = document.getElementById('spinScopeHint');
             wheel.style.transform = 'rotate(0deg)';
+            wheel.style.opacity = '';                                      // 恢复盘的显示
+            document.getElementById('wheelStage').classList.remove('revealed');
+            document.getElementById('wheelWinner').classList.remove('show');
             const list = spinScopeList();
             if (!list.length) {
                 wheel.replaceChildren();
@@ -1922,11 +1947,12 @@
             })(performance.now());
         }
         function revealWinner(w) {
-            const card = document.querySelector('#wheel .wheel-card[data-idx="' + w + '"]');
-            if (card) card.classList.add('win');
             const item = wheelItems[w];
-            document.getElementById('spinResultName').textContent =
-                (item.emoji ? firstEmoji(item.emoji) + ' ' : '') + item.title;
+            document.getElementById('wwEmoji').textContent = firstEmoji(item.emoji);
+            document.getElementById('wwName').textContent = item.title;
+            document.getElementById('wheelStage').classList.add('revealed');
+            document.getElementById('wheel').style.opacity = '0.28';   // 盘退到背景
+            document.getElementById('wheelWinner').classList.add('show'); // 中奖卡放大到中央
             setWheelState('done');
         }
 
@@ -1935,16 +1961,16 @@
             const act = document.getElementById('spinActionBtn');
             const again = document.getElementById('spinAgainBtn');
             const openB = document.getElementById('spinOpenBtn');
-            const result = document.getElementById('spinResult');
             act.hidden = false; act.disabled = false;
-            again.hidden = true; openB.hidden = true; result.hidden = true;
+            again.hidden = true; openB.hidden = true;
+            if (s !== 'done') document.getElementById('wheelWinner').classList.remove('show');
             if (s === 'empty') { act.hidden = true; }
             else if (s === 'idle') { act.textContent = '开始转 🎡'; }
             else if (s === 'spinning') { act.textContent = '停 ✋'; }
             else if (s === 'stopping') { act.textContent = '停下中…'; act.disabled = true; }
             else if (s === 'done') {
                 act.hidden = true;
-                again.hidden = false; openB.hidden = false; result.hidden = false;
+                again.hidden = false; openB.hidden = false;
             }
         }
 
