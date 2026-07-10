@@ -16,6 +16,8 @@ const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
 const JWT_SECRET = process.env.JWT_SECRET;
 const ALLOW_ORIGIN = process.env.ALLOW_ORIGIN || 'https://tools.gimago.cn';
+// 菜谱所有者：始终是管理员，且只有他能任命/取消其他管理员
+const OWNER_USERNAME = process.env.OWNER_USERNAME || 'jbx';
 
 if (!JWT_SECRET || JWT_SECRET.length < 16) {
   console.error('FATAL: 未设置足够长的 JWT_SECRET（建议 openssl rand -hex 24）。');
@@ -36,6 +38,7 @@ db.exec(`
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     username   TEXT NOT NULL UNIQUE,
     password   TEXT NOT NULL,
+    is_admin   INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE TABLE IF NOT EXISTS activities (
@@ -118,6 +121,11 @@ if (!_recipeCols.includes('prep')) db.exec("ALTER TABLE recipes ADD COLUMN prep 
 if (!_recipeCols.includes('sauces')) db.exec("ALTER TABLE recipes ADD COLUMN sauces TEXT NOT NULL DEFAULT '[]'");
 if (!_recipeCols.includes('seasonings')) db.exec("ALTER TABLE recipes ADD COLUMN seasonings TEXT NOT NULL DEFAULT '[]'");
 if (!_recipeCols.includes('cook_count')) db.exec("ALTER TABLE recipes ADD COLUMN cook_count INTEGER NOT NULL DEFAULT 0");
+
+// 用户管理员标记：迁移 + 确保 OWNER 始终是管理员
+const _userCols = db.prepare("PRAGMA table_info(users)").all().map((c) => c.name);
+if (!_userCols.includes('is_admin')) db.exec("ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0");
+db.prepare('UPDATE users SET is_admin = 1 WHERE username = ?').run(OWNER_USERNAME);
 
 // --- 密码哈希（scrypt，无原生依赖）---
 function hashPassword(pw) {
@@ -254,7 +262,8 @@ app.post('/api/auth/register', wrap((req, res) => {
   if (db.prepare('SELECT id FROM users WHERE username = ?').get(username)) {
     return res.status(409).json({ error: '用户名已存在' });
   }
-  const info = db.prepare('INSERT INTO users (username, password) VALUES (?, ?)').run(username, hashPassword(password));
+  const info = db.prepare('INSERT INTO users (username, password, is_admin) VALUES (?, ?, ?)')
+    .run(username, hashPassword(password), username === OWNER_USERNAME ? 1 : 0);
   res.status(201).json({ token: signToken(info.lastInsertRowid), username });
 }));
 
@@ -267,13 +276,25 @@ app.post('/api/auth/login', wrap((req, res) => {
   res.json({ token: signToken(user.id), username });
 }));
 
-// 当前登录态校验（前端可用来确认 token 是否仍有效）
+// 当前登录态校验（前端用来确认 token + 是否管理员/所有者）
 app.get('/api/auth/me', wrap((req, res) => {
   const p = verifyTokenStr((req.get('Authorization') || '').replace(/^Bearer /, ''));
   if (!p) return res.status(401).json({ error: '未登录' });
-  const u = db.prepare('SELECT username FROM users WHERE id = ?').get(p.uid);
+  const u = db.prepare('SELECT username, is_admin FROM users WHERE id = ?').get(p.uid);
   if (!u) return res.status(401).json({ error: '账号不存在' });
-  res.json({ username: u.username });
+  res.json({ username: u.username, is_admin: !!u.is_admin, is_owner: u.username === OWNER_USERNAME });
+}));
+
+// 任命 / 取消管理员（仅所有者）；所有者本人始终是管理员，不可改
+app.post('/api/auth/admins', requireOwner, wrap((req, res) => {
+  const username = cleanUsername(req.body && req.body.username);
+  if (!username) return res.status(400).json({ error: '用户名无效' });
+  if (username === OWNER_USERNAME) return res.status(400).json({ error: '所有者始终是管理员' });
+  const u = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+  if (!u) return res.status(404).json({ error: '用户不存在' });
+  const makeAdmin = req.body && req.body.is_admin ? 1 : 0;
+  db.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(makeAdmin, u.id);
+  res.json({ ok: true, username, is_admin: !!makeAdmin });
 }));
 
 // ============ 认证中间件：保护所有 app 数据接口 ============
@@ -281,6 +302,29 @@ function requireAuth(req, res, next) {
   const p = verifyTokenStr((req.get('Authorization') || '').replace(/^Bearer /, ''));
   if (!p) return res.status(401).json({ error: '未登录或登录已过期' });
   req.uid = p.uid;
+  next();
+}
+
+// 从 token 载入用户（含 is_admin）
+function loadUser(req) {
+  const p = verifyTokenStr((req.get('Authorization') || '').replace(/^Bearer /, ''));
+  if (!p) return null;
+  return db.prepare('SELECT id, username, is_admin FROM users WHERE id = ?').get(p.uid) || null;
+}
+// 需管理员：菜谱增删改
+function requireAdmin(req, res, next) {
+  const u = loadUser(req);
+  if (!u) return res.status(401).json({ error: '未登录或登录已过期' });
+  if (!u.is_admin) return res.status(403).json({ error: '需要管理员权限' });
+  req.uid = u.id; req.username = u.username;
+  next();
+}
+// 需所有者：任命管理员
+function requireOwner(req, res, next) {
+  const u = loadUser(req);
+  if (!u) return res.status(401).json({ error: '未登录或登录已过期' });
+  if (u.username !== OWNER_USERNAME) return res.status(403).json({ error: '仅所有者可操作' });
+  req.uid = u.id;
   next();
 }
 
@@ -461,12 +505,13 @@ app.delete('/api/todo/items/:id', requireAuth, wrap((req, res) => {
 }));
 
 // ============ 菜谱：/api/recipe ============
-app.get('/api/recipe/items', requireAuth, wrap((req, res) => {
-  const rows = db.prepare('SELECT * FROM recipes WHERE user_id = ? ORDER BY created_at DESC').all(req.uid);
+// 公开：任何人可查看整本菜谱（共享，不按用户隔离）
+app.get('/api/recipe/items', wrap((req, res) => {
+  const rows = db.prepare('SELECT * FROM recipes ORDER BY created_at DESC').all();
   res.json(rows.map(recipeOut));
 }));
 
-app.post('/api/recipe/items', requireAuth, wrap((req, res) => {
+app.post('/api/recipe/items', requireAdmin, wrap((req, res) => {
   const b = req.body || {};
   const title = cleanName(b.title);
   if (!title) return res.status(400).json({ error: '菜名必填（1-100 字）' });
@@ -480,9 +525,9 @@ app.post('/api/recipe/items', requireAuth, wrap((req, res) => {
   res.status(201).json(recipeOut(db.prepare('SELECT * FROM recipes WHERE id = ?').get(info.lastInsertRowid)));
 }));
 
-app.patch('/api/recipe/items/:id', requireAuth, wrap((req, res) => {
+app.patch('/api/recipe/items/:id', requireAdmin, wrap((req, res) => {
   const id = Number(req.params.id);
-  const ex = db.prepare('SELECT * FROM recipes WHERE id = ? AND user_id = ?').get(id, req.uid);
+  const ex = db.prepare('SELECT * FROM recipes WHERE id = ?').get(id);
   if (!ex) return res.status(404).json({ error: '菜谱不存在' });
   const b = req.body || {};
   const title = b.title !== undefined ? cleanName(b.title) : ex.title;
@@ -506,22 +551,22 @@ app.patch('/api/recipe/items/:id', requireAuth, wrap((req, res) => {
     if (ex.photo && ex.photo !== photo) unlinkPhoto(ex.photo);
   }
   db.prepare(`UPDATE recipes SET title = ?, emoji = ?, category = ?, cook_minutes = ?, servings = ?, difficulty = ?,
-    tags = ?, ingredients = ?, seasonings = ?, steps = ?, prep = ?, sauces = ?, notes = ?, photo = ?, cook_count = ? WHERE id = ? AND user_id = ?`).run(
-    title, emoji, category, cook, servings, difficulty, tags, ingredients, seasonings, steps, prep, sauces, notes, photo, cook_count, id, req.uid);
+    tags = ?, ingredients = ?, seasonings = ?, steps = ?, prep = ?, sauces = ?, notes = ?, photo = ?, cook_count = ? WHERE id = ?`).run(
+    title, emoji, category, cook, servings, difficulty, tags, ingredients, seasonings, steps, prep, sauces, notes, photo, cook_count, id);
   res.json(recipeOut(db.prepare('SELECT * FROM recipes WHERE id = ?').get(id)));
 }));
 
-app.delete('/api/recipe/items/:id', requireAuth, wrap((req, res) => {
+app.delete('/api/recipe/items/:id', requireAdmin, wrap((req, res) => {
   const id = Number(req.params.id);
-  const ex = db.prepare('SELECT * FROM recipes WHERE id = ? AND user_id = ?').get(id, req.uid);
+  const ex = db.prepare('SELECT * FROM recipes WHERE id = ?').get(id);
   if (!ex) return res.status(404).json({ error: '菜谱不存在' });
   unlinkPhoto(ex.photo);
-  db.prepare('DELETE FROM recipes WHERE id = ? AND user_id = ?').run(id, req.uid);
+  db.prepare('DELETE FROM recipes WHERE id = ?').run(id);
   res.json({ ok: true });
 }));
 
 // 封面照片上传：前端已 canvas 压缩为 base64；本路由自带 8mb 解析器（全局 64kb 已跳过本路径）
-app.post('/api/recipe/upload', requireAuth, express.json({ limit: '8mb' }), wrap((req, res) => {
+app.post('/api/recipe/upload', requireAdmin, express.json({ limit: '8mb' }), wrap((req, res) => {
   const { data, mime } = req.body || {};
   const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[mime];
   if (!ext || typeof data !== 'string') return res.status(400).json({ error: '图片格式不支持' });

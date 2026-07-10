@@ -189,6 +189,7 @@
         .btn-danger { color: var(--muted); background: transparent; border-color: transparent; box-shadow: none; }
         .btn-danger:hover { color: var(--danger); background: rgba(184, 50, 50, 0.08); }
         .btn-block { width: 100%; }
+        body:not(.is-admin) .admin-only { display: none !important; }
         .new-btn { min-height: 46px; white-space: nowrap; }
 
         .filters {
@@ -694,7 +695,7 @@
             </div>
             <div class="header-actions">
                 <span class="user-label" id="userLabel"></span>
-                <button class="icon-btn" onclick="logout()" aria-label="退出登录" title="退出登录">⎋</button>
+                <button class="icon-btn" id="authBtn" aria-label="登录或退出" title="登录">⎋</button>
             </div>
         </header>
 
@@ -709,7 +710,7 @@
                 <option value="name">按菜名排序</option>
                 <option value="cooked">按次数排序</option>
             </select>
-            <button class="btn btn-primary new-btn" onclick="openCreate()">＋ 新建菜谱</button>
+            <button class="btn btn-primary new-btn admin-only" onclick="openCreate()">＋ 新建菜谱</button>
             <div class="filters" id="catChips"></div>
         </section>
 
@@ -822,8 +823,8 @@
             </div>
             <div id="detailBody" class="modal-scroll detail-scroll"></div>
             <div class="modal-actions detail-ops">
-                <button class="btn btn-danger" id="detailDelete">删除菜谱</button>
-                <button class="btn btn-ghost" id="detailEdit">编辑</button>
+                <button class="btn btn-danger admin-only" id="detailDelete">删除菜谱</button>
+                <button class="btn btn-ghost admin-only" id="detailEdit">编辑</button>
                 <button class="btn btn-primary" onclick="closeDetail()">完成</button>
             </div>
         </section>
@@ -856,6 +857,7 @@
         let sortMode = 'newest';
         let loading = true;
         let loadError = '';
+        let isAdmin = false;      // 只有管理员能增删改
         let isSaving = false;
         let editingId = null;     // null = 新建
         let formPhoto = '';       // 已在服务器上的路径，或 ''
@@ -1022,7 +1024,7 @@
             if (!list.length) {
                 el.innerHTML = recipes.length
                     ? '<div class="state-panel"><div><span class="state-icon">⌕</span><div class="state-title">没有匹配的菜谱</div><div class="state-copy">换个关键词或清除筛选后再看看</div></div></div>'
-                    : '<div class="state-panel"><div><span class="state-icon">🍲</span><div class="state-title">还没有菜谱</div><div class="state-copy">把第一道常做的菜收藏进来</div><button class="btn btn-primary state-action" onclick="openCreate()">新建菜谱</button></div></div>';
+                    : '<div class="state-panel"><div><span class="state-icon">🍲</span><div class="state-title">还没有菜谱</div><div class="state-copy">把第一道常做的菜收藏进来</div><button class="btn btn-primary state-action admin-only" onclick="openCreate()">新建菜谱</button></div></div>';
                 return;
             }
             el.innerHTML = list.map(rcardHTML).join('');
@@ -1176,6 +1178,16 @@
                 name: row.querySelector('.prep-name').value.trim(),
                 action: row.querySelector('.prep-action').value.trim(),
             })).filter(p => p.name);
+        }
+        // 聚焦下拉时按「当前食材」实时重建选项，保留已选值（无需先保存）
+        function refreshPrepOptions(select) {
+            const current = select.value;
+            const opts = collectList('fIngredients');
+            if (current && !opts.includes(current)) opts.unshift(current);
+            select.innerHTML = ['<option value="">选择食材</option>']
+                .concat(opts.map(o => `<option value="${esc(o)}"${o === current ? ' selected' : ''}>${esc(o)}</option>`))
+                .join('');
+            select.value = current;
         }
 
         // --- 料汁编辑器（命名 + 配方）---
@@ -1382,10 +1394,10 @@
                 ${tags ? `<div class="detail-tags">${tags}</div>` : ''}
                 <div class="cook-count">
                     <span class="cc-label">已做</span>
-                    <button class="cc-btn" type="button" onclick="bumpCount(${Number(r.id)}, -1)" aria-label="次数减一">−</button>
+                    <button class="cc-btn admin-only" type="button" onclick="bumpCount(${Number(r.id)}, -1)" aria-label="次数减一">−</button>
                     <span class="cc-num">${r.cook_count || 0}</span>
                     <span class="cc-unit">次</span>
-                    <button class="cc-btn" type="button" onclick="bumpCount(${Number(r.id)}, 1)" aria-label="次数加一">＋</button>
+                    <button class="cc-btn admin-only" type="button" onclick="bumpCount(${Number(r.id)}, 1)" aria-label="次数加一">＋</button>
                 </div>
                 ${ings}${seasonings}${prep}${sauces}${steps}${notes}`;
             document.getElementById('detailEdit').onclick = () => openEdit(id);
@@ -1489,6 +1501,30 @@
             else if (document.getElementById('detailModal').classList.contains('show')) closeDetail();
         });
 
+        // --- 登录 / 权限 UI（公开查看；仅管理员显示增删改）---
+        function setupAuthUI() {
+            const authBtn = document.getElementById('authBtn');
+            if (store.token) {
+                document.getElementById('userLabel').textContent = store.user || '用户';
+                authBtn.textContent = '⎋'; authBtn.title = '退出登录'; authBtn.style.fontSize = '';
+                authBtn.onclick = logout;
+                checkAdmin();
+            } else {
+                document.getElementById('userLabel').textContent = '';
+                authBtn.textContent = '登录'; authBtn.title = '登录以管理'; authBtn.style.fontSize = '0.8rem';
+                authBtn.onclick = gotoLogin;
+                isAdmin = false; applyAdminUI();
+            }
+        }
+        async function checkAdmin() {
+            try {
+                const res = await fetch(API + '/api/auth/me', { headers: { Authorization: 'Bearer ' + store.token } });
+                isAdmin = res.ok ? !!(await res.json()).is_admin : false;
+            } catch (e) { isAdmin = false; }
+            applyAdminUI();
+        }
+        function applyAdminUI() { document.body.classList.toggle('is-admin', isAdmin); }
+
         // --- 启动 ---
         window.addEventListener('load', () => {
             document.addEventListener('click', (e) => {
@@ -1496,8 +1532,11 @@
                 if (p.classList.contains('show') && !p.contains(e.target)) closePopover();
             });
             window.addEventListener('scroll', closePopover, true);
-            if (!store.token) { gotoLogin(); return; }
-            document.getElementById('userLabel').textContent = store.user || '用户';
+            // 备菜「选食材」下拉：聚焦时实时读取当前食材，无需先保存
+            document.getElementById('fPrep').addEventListener('focusin', (e) => {
+                if (e.target.classList && e.target.classList.contains('prep-name')) refreshPrepOptions(e.target);
+            });
+            setupAuthUI();
             load();
         });
     </script>
