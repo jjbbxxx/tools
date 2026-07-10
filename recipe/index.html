@@ -262,7 +262,15 @@
             display: grid; place-items: center;
             background: #e8eee9;
             color: var(--green);
-            font-size: 3.5rem;
+            padding: 10px;
+            overflow: hidden;
+        }
+        .ph-emojis {
+            display: flex; flex-wrap: wrap;
+            align-items: center; justify-content: center;
+            gap: 2px 6px;
+            line-height: 1.05;
+            max-width: 100%;
         }
         .rbody { padding: 15px 16px 17px; }
         .card-category {
@@ -547,6 +555,55 @@
         .detail-notes { color: var(--muted); line-height: 1.7; white-space: pre-wrap; word-break: break-word; }
         .detail-ops .btn-danger { margin-right: auto; }
 
+        /* 删除气泡确认（贴按钮弹出，替代 confirm）*/
+        #popover {
+            position: fixed; z-index: 300;
+            display: none;
+            min-width: 180px; max-width: min(280px, calc(100vw - 24px));
+            padding: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.76);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(30px) saturate(160%);
+            -webkit-backdrop-filter: blur(30px) saturate(160%);
+            box-shadow: 0 18px 44px rgba(15, 21, 17, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        }
+        #popover.show { display: block; }
+        .pop-title { padding: 9px 10px 7px; color: var(--muted); font-size: 0.78rem; font-weight: 700; line-height: 1.4; }
+        .pop-item { display: block; width: 100%; text-align: left; border: 0; background: transparent; cursor: pointer; padding: 10px; border-radius: 10px; font-size: 0.92rem; font-weight: 600; color: var(--ink); }
+        .pop-item:hover, .pop-item:active { background: rgba(255, 255, 255, 0.62); }
+        .pop-item.danger { color: var(--danger); }
+        .pop-item.cancel { color: var(--muted); font-weight: 500; }
+
+        /* 备菜 / 料汁 编辑器（表单）*/
+        .prep-row, .sauce-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+        .prep-row .field, .sauce-row .field { margin: 0; }
+        .prep-row .prep-name, .sauce-row .sauce-name { flex: 0 0 34%; min-width: 92px; }
+        .prep-row .prep-action, .sauce-row .sauce-mix { flex: 1; min-width: 0; }
+
+        /* 备菜 / 料汁 清单（详情）*/
+        .prep-list, .sauce-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+        .prep-list li, .sauce-list li { position: relative; padding-left: 18px; line-height: 1.55; word-break: break-word; }
+        .prep-list li::before, .sauce-list li::before { content: ""; position: absolute; left: 0; top: 0.64em; width: 7px; height: 7px; border-radius: 50%; }
+        .prep-list li::before { background: var(--gold); }
+        .sauce-list li::before { background: var(--accent); }
+        .prep-ing, .sauce-name-txt { font-weight: 700; }
+        .prep-ing + .prep-act::before, .sauce-name-txt + .sauce-mix-txt::before { content: "·"; margin: 0 6px; color: #c0c6bf; }
+        .prep-act, .sauce-mix-txt { color: var(--muted); }
+        /* 调料清单（详情，不可勾选）*/
+        .seasoning-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px; margin: 0; padding: 0; list-style: none; }
+        .seasoning-list li { position: relative; padding-left: 18px; line-height: 1.55; word-break: break-word; }
+        .seasoning-list li::before { content: ""; position: absolute; left: 0; top: 0.64em; width: 7px; height: 7px; border-radius: 50%; background: #b0b7ac; }
+
+        /* 烹饪模式：详情页备菜/料汁/食材/步骤点按勾掉 */
+        .cook-hint { color: var(--muted); font-size: 0.72rem; font-weight: 500; }
+        .prep-list li, .sauce-list li, .ing-list li, .step-list li { cursor: pointer; transition: color 0.16s, opacity 0.16s; }
+        .prep-list li:focus-visible, .sauce-list li:focus-visible, .ing-list li:focus-visible, .step-list li:focus-visible { outline: 3px solid rgba(206, 73, 53, 0.24); outline-offset: 3px; border-radius: 6px; }
+        .prep-list li.done, .sauce-list li.done, .ing-list li.done, .step-list li.done { color: var(--muted); text-decoration: line-through; text-decoration-color: rgba(110, 116, 109, 0.55); }
+        .prep-list li.done .prep-ing, .prep-list li.done .prep-act, .sauce-list li.done .sauce-name-txt, .sauce-list li.done .sauce-mix-txt { color: var(--muted); }
+        .prep-list li.done::before, .sauce-list li.done::before, .ing-list li.done::before { background: #c4cabf; }
+        .step-list li.done::before { background: #c4cabf; text-decoration: none; }
+
         .toast {
             position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom)); z-index: 200;
             max-width: min(420px, calc(100vw - 32px));
@@ -668,8 +725,8 @@
                             <input id="fTitle" class="field" placeholder="如 番茄炒蛋" maxlength="100">
                         </div>
                         <div class="col" style="flex:1">
-                            <label class="field-lbl" for="fEmoji">图标</label>
-                            <input id="fEmoji" class="field" placeholder="🍳" maxlength="4">
+                            <label class="field-lbl" for="fEmoji">图标（可多个）</label>
+                            <input id="fEmoji" class="field" placeholder="🍅🥚🔥" maxlength="40">
                         </div>
                     </div>
                     <label class="field-lbl" for="fCategory">分类</label>
@@ -699,8 +756,23 @@
                 </section>
 
                 <section class="form-section">
-                    <h3 class="section-heading">食材清单</h3>
+                    <h3 class="section-heading">食材</h3>
                     <div id="fIngredients" class="list-editor"></div>
+                </section>
+
+                <section class="form-section">
+                    <h3 class="section-heading">调料 <span>盐、生抽、糖等，详情页不做勾选</span></h3>
+                    <div id="fSeasonings" class="list-editor"></div>
+                </section>
+
+                <section class="form-section">
+                    <h3 class="section-heading">备菜 <span>下锅前的准备，选食材填备法</span></h3>
+                    <div id="fPrep" class="list-editor"></div>
+                </section>
+
+                <section class="form-section">
+                    <h3 class="section-heading">料汁 <span>可选，提前调好的料汁，某步整碗加入</span></h3>
+                    <div id="fSauces" class="list-editor"></div>
                 </section>
 
                 <section class="form-section">
@@ -736,6 +808,7 @@
         </section>
     </div>
 
+    <div id="popover"></div>
     <div id="toast" class="toast"></div>
 
     <script>
@@ -851,7 +924,9 @@
             const list = recipes.filter(r => {
                 if (catFilter && r.category !== catFilter) return false;
                 if (!searchQ) return true;
-                const hay = [r.title, r.category, ...(r.tags || []), ...(r.ingredients || [])]
+                const hay = [r.title, r.category, ...(r.tags || []), ...(r.ingredients || []), ...(r.seasonings || []),
+                    ...(r.prep || []).flatMap(p => [p.name, p.action]),
+                    ...(r.sauces || []).flatMap(s => [s.name, s.mix])]
                     .join(' ').toLowerCase();
                 return hay.includes(searchQ);
             });
@@ -866,10 +941,25 @@
             return tags;
         }
 
+        // 无封面时的表情占位：拆成单个 emoji，按数量自适应字号并居中换行，任意数量都不溢出
+        function splitEmojis(str) {
+            const s = String(str || '').trim();
+            if (!s) return [];
+            if (typeof Intl !== 'undefined' && Intl.Segmenter) {
+                return [...new Intl.Segmenter().segment(s)].map(x => x.segment).filter(x => x.trim());
+            }
+            return [...s].filter(x => x.trim());
+        }
+        function emojiCoverHTML(emojiStr) {
+            const glyphs = splitEmojis(emojiStr);
+            const list = glyphs.length ? glyphs : ['🍽'];
+            const size = list.length <= 1 ? 3.4 : list.length <= 2 ? 2.9 : list.length <= 4 ? 2.3 : list.length <= 6 ? 1.9 : 1.5;
+            return `<div class="ph-emojis" style="font-size:${size}rem">${list.map(g => `<span>${esc(g)}</span>`).join('')}</div>`;
+        }
         function rcardHTML(r) {
             const cover = r.photo
                 ? `<img class="cover" src="${API + r.photo}" loading="lazy" alt="${esc(r.title)}">`
-                : `<div class="cover ph">${esc(r.emoji || '🍽')}</div>`;
+                : `<div class="cover ph">${emojiCoverHTML(r.emoji)}</div>`;
             const cardMeta = recipeMeta(r);
             return `
                 <article class="rcard glass" data-recipe-id="${Number(r.id)}" role="button" tabindex="0"
@@ -1032,6 +1122,67 @@
                 .map(field => field.value.trim()).filter(Boolean);
         }
 
+        // --- 备菜编辑器（从当前食材里挑 + 填备法）---
+        function prepRowHTML(item) {
+            const name = item && item.name ? item.name : '';
+            const action = item && item.action ? item.action : '';
+            const opts = collectList('fIngredients');
+            if (name && !opts.includes(name)) opts.unshift(name);
+            const options = ['<option value="">选择食材</option>']
+                .concat(opts.map(o => `<option value="${esc(o)}"${o === name ? ' selected' : ''}>${esc(o)}</option>`))
+                .join('');
+            return `<div class="prep-row">
+                <select class="field prep-name">${options}</select>
+                <input class="field prep-action" value="${esc(action)}" placeholder="备法，如 切成葱花" maxlength="200">
+                <button type="button" class="rm" onclick="removePrepRow(this)" aria-label="删除这一条" title="删除这一条">✕</button>
+            </div>`;
+        }
+        function renderPrep(items) {
+            const el = document.getElementById('fPrep');
+            const rows = (items && items.length ? items : [{}]).map(prepRowHTML).join('');
+            el.innerHTML = rows +
+                `<button type="button" class="btn btn-ghost add-row" onclick="addPrepRow()">＋ 添加备菜</button>`;
+        }
+        function addPrepRow() {
+            const el = document.getElementById('fPrep');
+            el.querySelector('.add-row').insertAdjacentHTML('beforebegin', prepRowHTML({}));
+        }
+        function removePrepRow(btn) { btn.closest('.prep-row').remove(); }
+        function collectPrep() {
+            return [...document.querySelectorAll('#fPrep .prep-row')].map(row => ({
+                name: row.querySelector('.prep-name').value.trim(),
+                action: row.querySelector('.prep-action').value.trim(),
+            })).filter(p => p.name);
+        }
+
+        // --- 料汁编辑器（命名 + 配方）---
+        function sauceRowHTML(item) {
+            const name = item && item.name ? item.name : '';
+            const mix = item && item.mix ? item.mix : '';
+            return `<div class="sauce-row">
+                <input class="field sauce-name" value="${esc(name)}" placeholder="料汁名，如 糖醋汁" maxlength="200">
+                <input class="field sauce-mix" value="${esc(mix)}" placeholder="配方，如 生抽2勺+醋1勺+糖1勺" maxlength="200">
+                <button type="button" class="rm" onclick="removeSauceRow(this)" aria-label="删除这一条" title="删除这一条">✕</button>
+            </div>`;
+        }
+        function renderSauces(items) {
+            const el = document.getElementById('fSauces');
+            const rows = (items && items.length ? items : [{}]).map(sauceRowHTML).join('');
+            el.innerHTML = rows +
+                `<button type="button" class="btn btn-ghost add-row" onclick="addSauceRow()">＋ 添加料汁</button>`;
+        }
+        function addSauceRow() {
+            const el = document.getElementById('fSauces');
+            el.querySelector('.add-row').insertAdjacentHTML('beforebegin', sauceRowHTML({}));
+        }
+        function removeSauceRow(btn) { btn.closest('.sauce-row').remove(); }
+        function collectSauces() {
+            return [...document.querySelectorAll('#fSauces .sauce-row')].map(row => ({
+                name: row.querySelector('.sauce-name').value.trim(),
+                mix: row.querySelector('.sauce-mix').value.trim(),
+            })).filter(s => s.name || s.mix);
+        }
+
         // --- 照片：选图先本地压缩预览，保存时才上传 ---
         function compressImage(file) {
             return new Promise((resolve, reject) => {
@@ -1103,7 +1254,10 @@
             removePhoto();
             renderList('fTags', []);
             renderList('fIngredients', []);
+            renderList('fSeasonings', []);
             renderSteps([]);
+            renderPrep([]);
+            renderSauces([]);
             renderQuickChoices();
             setModal('formModal', true);
             setTimeout(() => document.getElementById('fTitle').focus(), 0);
@@ -1120,7 +1274,10 @@
             if (r.photo) showPreview(API + r.photo); else removePhoto();
             renderList('fTags', r.tags);
             renderList('fIngredients', r.ingredients);
+            renderList('fSeasonings', r.seasonings);
             renderSteps(r.steps);
+            renderPrep(r.prep);
+            renderSauces(r.sauces);
             renderQuickChoices();
             closeDetail();
             setModal('formModal', true);
@@ -1153,7 +1310,10 @@
                     category: document.getElementById('fCategory').value.trim(),
                     tags: collectList('fTags'),
                     ingredients: collectList('fIngredients'),
+                    seasonings: collectList('fSeasonings'),
                     steps: collectSteps(),
+                    prep: collectPrep(),
+                    sauces: collectSauces(),
                     notes: document.getElementById('fNotes').value.trim(),
                     photo,
                 };
@@ -1180,9 +1340,15 @@
             const tags = (r.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
             const meta = recipeMeta(r);
             const ings = (r.ingredients || []).length
-                ? `<section class="detail-section"><h3 class="sec-label">食材</h3><ul class="ing-list">${r.ingredients.map(i => `<li>${esc(i)}</li>`).join('')}</ul></section>` : '';
+                ? `<section class="detail-section"><h3 class="sec-label">食材 <span class="cook-hint">点一下勾掉</span></h3><ul class="ing-list">${r.ingredients.map(i => `<li role="button" tabindex="0">${esc(i)}</li>`).join('')}</ul></section>` : '';
+            const seasonings = (r.seasonings || []).length
+                ? `<section class="detail-section"><h3 class="sec-label">调料</h3><ul class="seasoning-list">${r.seasonings.map(s => `<li>${esc(s)}</li>`).join('')}</ul></section>` : '';
+            const prep = (r.prep || []).length
+                ? `<section class="detail-section"><h3 class="sec-label">备菜 <span class="cook-hint">点一下勾掉</span></h3><ul class="prep-list">${r.prep.map(p => `<li role="button" tabindex="0"><span class="prep-ing">${esc(p.name)}</span>${p.action ? `<span class="prep-act">${esc(p.action)}</span>` : ''}</li>`).join('')}</ul></section>` : '';
+            const sauces = (r.sauces || []).length
+                ? `<section class="detail-section"><h3 class="sec-label">料汁 <span class="cook-hint">点一下勾掉</span></h3><ul class="sauce-list">${r.sauces.map(s => `<li role="button" tabindex="0"><span class="sauce-name-txt">${esc(s.name)}</span>${s.mix ? `<span class="sauce-mix-txt">${esc(s.mix)}</span>` : ''}</li>`).join('')}</ul></section>` : '';
             const steps = (r.steps || []).length
-                ? `<section class="detail-section"><h3 class="sec-label">烹饪步骤</h3><ol class="step-list">${r.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol></section>` : '';
+                ? `<section class="detail-section"><h3 class="sec-label">烹饪步骤 <span class="cook-hint">点一下勾掉</span></h3><ol class="step-list">${r.steps.map(s => `<li role="button" tabindex="0">${esc(s)}</li>`).join('')}</ol></section>` : '';
             const notes = r.notes
                 ? `<section class="detail-section"><h3 class="sec-label">备注</h3><div class="detail-notes">${esc(r.notes)}</div></section>` : '';
             document.getElementById('detailBody').innerHTML = `
@@ -1191,16 +1357,39 @@
                 <h2 class="detail-title">${r.emoji ? esc(r.emoji) + ' ' : ''}${esc(r.title)}</h2>
                 <div class="detail-meta">${meta.join('')}</div>
                 ${tags ? `<div class="detail-tags">${tags}</div>` : ''}
-                ${ings}${steps}${notes}`;
+                ${ings}${seasonings}${prep}${sauces}${steps}${notes}`;
             document.getElementById('detailEdit').onclick = () => openEdit(id);
-            document.getElementById('detailDelete').onclick = () => doDelete(id);
+            document.getElementById('detailDelete').onclick = (e) => askDelete(e, id);
             setModal('detailModal', true);
         }
-        function closeDetail() { setModal('detailModal', false); }
+        function closeDetail() { closePopover(); setModal('detailModal', false); }
+
+        // --- 删除气泡确认（贴按钮弹出，替代 confirm）---
+        function askDelete(ev, id) {
+            ev.stopPropagation();
+            const r = recipes.find(x => x.id === id);
+            if (!r) return;
+            const pop = document.getElementById('popover');
+            pop.innerHTML = `<div class="pop-title">删除「${esc(r.title)}」？此操作不可撤销</div>
+                <button type="button" class="pop-item danger" onclick="doDelete(${Number(id)})">确认删除</button>
+                <button type="button" class="pop-item cancel" onclick="closePopover()">取消</button>`;
+            pop.style.visibility = 'hidden';
+            pop.classList.add('show');
+            const btn = ev.currentTarget.getBoundingClientRect();
+            const rp = pop.getBoundingClientRect();
+            let x = btn.left;
+            let y = btn.top - rp.height - 8;                 // 默认弹在按钮上方
+            if (y < 8) y = btn.bottom + 8;                    // 上方放不下就翻到下方
+            x = Math.max(8, Math.min(x, window.innerWidth - rp.width - 8));
+            y = Math.max(8, Math.min(y, window.innerHeight - rp.height - 8));
+            pop.style.left = x + 'px';
+            pop.style.top = y + 'px';
+            pop.style.visibility = '';
+        }
+        function closePopover() { document.getElementById('popover').classList.remove('show'); }
 
         async function doDelete(id) {
-            const r = recipes.find(x => x.id === id);
-            if (!confirm('删除「' + (r ? r.title : '这道菜') + '」？此操作不可撤销')) return;
+            closePopover();
             try {
                 await api('DELETE', '/api/recipe/items/' + id);
                 closeDetail();
@@ -1228,21 +1417,40 @@
             e.preventDefault();
             openDetail(Number(card.dataset.recipeId));
         });
+        // 烹饪模式：详情页点按食材/步骤划掉（临时状态，重开即清空）
+        function toggleCookItem(target) {
+            const li = target.closest('.prep-list li, .sauce-list li, .ing-list li, .step-list li');
+            if (li) li.classList.toggle('done');
+        }
+        document.getElementById('detailBody').addEventListener('click', (e) => toggleCookItem(e.target));
+        document.getElementById('detailBody').addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter' && e.key !== ' ') return;
+            if (!e.target.closest('.prep-list li, .sauce-list li, .ing-list li, .step-list li')) return;
+            e.preventDefault();
+            toggleCookItem(e.target);
+        });
         document.querySelectorAll('.overlay').forEach(o => {
             o.addEventListener('click', (e) => {
                 if (e.target !== o || isSaving) return;
+                if (document.getElementById('popover').classList.contains('show')) return;
                 if (o.id === 'formModal') closeForm();
                 else closeDetail();
             });
         });
         document.addEventListener('keydown', (e) => {
             if (e.key !== 'Escape' || isSaving) return;
+            if (document.getElementById('popover').classList.contains('show')) { closePopover(); return; }
             if (document.getElementById('formModal').classList.contains('show')) closeForm();
             else if (document.getElementById('detailModal').classList.contains('show')) closeDetail();
         });
 
         // --- 启动 ---
         window.addEventListener('load', () => {
+            document.addEventListener('click', (e) => {
+                const p = document.getElementById('popover');
+                if (p.classList.contains('show') && !p.contains(e.target)) closePopover();
+            });
+            window.addEventListener('scroll', closePopover, true);
             if (!store.token) { gotoLogin(); return; }
             document.getElementById('userLabel').textContent = store.user || '用户';
             load();

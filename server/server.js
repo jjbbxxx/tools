@@ -100,13 +100,22 @@ db.exec(`
     difficulty   INTEGER NOT NULL DEFAULT 0,
     tags         TEXT NOT NULL DEFAULT '[]',
     ingredients  TEXT NOT NULL DEFAULT '[]',
+    seasonings   TEXT NOT NULL DEFAULT '[]',
     steps        TEXT NOT NULL DEFAULT '[]',
+    prep         TEXT NOT NULL DEFAULT '[]',
+    sauces       TEXT NOT NULL DEFAULT '[]',
     notes        TEXT NOT NULL DEFAULT '',
     photo        TEXT NOT NULL DEFAULT '',
     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_recipes_user ON recipes(user_id, created_at);
 `);
+
+// 迁移：给已存在的 recipes 表补备菜/料汁字段（结构化 {name, ...} 列表，JSON 存）
+const _recipeCols = db.prepare("PRAGMA table_info(recipes)").all().map((c) => c.name);
+if (!_recipeCols.includes('prep')) db.exec("ALTER TABLE recipes ADD COLUMN prep TEXT NOT NULL DEFAULT '[]'");
+if (!_recipeCols.includes('sauces')) db.exec("ALTER TABLE recipes ADD COLUMN sauces TEXT NOT NULL DEFAULT '[]'");
+if (!_recipeCols.includes('seasonings')) db.exec("ALTER TABLE recipes ADD COLUMN seasonings TEXT NOT NULL DEFAULT '[]'");
 
 // --- 密码哈希（scrypt，无原生依赖）---
 function hashPassword(pw) {
@@ -170,7 +179,7 @@ const wrap = (fn) => (req, res) => {
 
 // --- 校验工具 ---
 function cleanName(v) { if (typeof v !== 'string') return null; const s = v.trim(); return s.length >= 1 && s.length <= 100 ? s : null; }
-function cleanEmoji(v) { if (v == null) return ''; return String(v).trim().slice(0, 16); }
+function cleanEmoji(v) { if (v == null) return ''; return String(v).trim().slice(0, 40); }
 function cleanInterval(v) { if (v == null || v === '') return null; const n = Number(v); return Number.isInteger(n) && n > 0 && n <= 3650 ? n : null; }
 function cleanDoneAt(v) { if (v == null || v === '') return new Date().toISOString(); const t = Date.parse(v); return Number.isNaN(t) ? null : new Date(t).toISOString(); }
 function cleanNote(v) { if (v == null) return ''; return String(v).trim().slice(0, 500); }
@@ -188,8 +197,18 @@ function cleanStringList(v, maxItems, maxLen) {
   return JSON.stringify(out);
 }
 function cleanPhotoPath(v) { const s = String(v == null ? '' : v).trim(); return /^\/recipe-images\/[A-Za-z0-9_.-]+$/.test(s) ? s : ''; }
+// 结构化 {name, <secondKey>} 列表（备菜 name+action / 料汁 name+mix）；各截断 200，最多 60 条，丢弃两字段皆空的行
+function cleanPairList(v, secondKey) {
+  if (!Array.isArray(v)) return '[]';
+  const out = v.map((x) => {
+    const row = { name: (x && x.name != null ? String(x.name) : '').trim().slice(0, 200) };
+    row[secondKey] = (x && x[secondKey] != null ? String(x[secondKey]) : '').trim().slice(0, 200);
+    return row;
+  }).filter((p) => p.name.length > 0 || p[secondKey].length > 0).slice(0, 60);
+  return JSON.stringify(out);
+}
 function recipeOut(r) {
-  return { ...r, tags: JSON.parse(r.tags || '[]'), ingredients: JSON.parse(r.ingredients || '[]'), steps: JSON.parse(r.steps || '[]') };
+  return { ...r, tags: JSON.parse(r.tags || '[]'), ingredients: JSON.parse(r.ingredients || '[]'), seasonings: JSON.parse(r.seasonings || '[]'), steps: JSON.parse(r.steps || '[]'), prep: JSON.parse(r.prep || '[]'), sauces: JSON.parse(r.sauces || '[]') };
 }
 // 删除菜谱照片文件（防路径穿越）
 function unlinkPhoto(p) {
@@ -449,12 +468,12 @@ app.post('/api/recipe/items', requireAuth, wrap((req, res) => {
   const title = cleanName(b.title);
   if (!title) return res.status(400).json({ error: '菜名必填（1-100 字）' });
   const info = db.prepare(`INSERT INTO recipes
-    (user_id, title, emoji, category, cook_minutes, servings, difficulty, tags, ingredients, steps, notes, photo)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    (user_id, title, emoji, category, cook_minutes, servings, difficulty, tags, ingredients, seasonings, steps, prep, sauces, notes, photo)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     req.uid, title, cleanEmoji(b.emoji), cleanCategory(b.category),
     cleanIntNullable(b.cook_minutes, 100000), cleanIntNullable(b.servings, 999), cleanDifficulty(b.difficulty),
-    cleanStringList(b.tags, 20, 30), cleanStringList(b.ingredients, 60, 200), cleanStringList(b.steps, 60, 500),
-    cleanNote(b.notes), cleanPhotoPath(b.photo));
+    cleanStringList(b.tags, 20, 30), cleanStringList(b.ingredients, 60, 200), cleanStringList(b.seasonings, 60, 200), cleanStringList(b.steps, 60, 500),
+    cleanPairList(b.prep, 'action'), cleanPairList(b.sauces, 'mix'), cleanNote(b.notes), cleanPhotoPath(b.photo));
   res.status(201).json(recipeOut(db.prepare('SELECT * FROM recipes WHERE id = ?').get(info.lastInsertRowid)));
 }));
 
@@ -472,7 +491,10 @@ app.patch('/api/recipe/items/:id', requireAuth, wrap((req, res) => {
   const difficulty = b.difficulty !== undefined ? cleanDifficulty(b.difficulty) : ex.difficulty;
   const tags = b.tags !== undefined ? cleanStringList(b.tags, 20, 30) : ex.tags;
   const ingredients = b.ingredients !== undefined ? cleanStringList(b.ingredients, 60, 200) : ex.ingredients;
+  const seasonings = b.seasonings !== undefined ? cleanStringList(b.seasonings, 60, 200) : ex.seasonings;
   const steps = b.steps !== undefined ? cleanStringList(b.steps, 60, 500) : ex.steps;
+  const prep = b.prep !== undefined ? cleanPairList(b.prep, 'action') : ex.prep;
+  const sauces = b.sauces !== undefined ? cleanPairList(b.sauces, 'mix') : ex.sauces;
   const notes = b.notes !== undefined ? cleanNote(b.notes) : ex.notes;
   let photo = ex.photo;
   if (b.photo !== undefined) {
@@ -480,8 +502,8 @@ app.patch('/api/recipe/items/:id', requireAuth, wrap((req, res) => {
     if (ex.photo && ex.photo !== photo) unlinkPhoto(ex.photo);
   }
   db.prepare(`UPDATE recipes SET title = ?, emoji = ?, category = ?, cook_minutes = ?, servings = ?, difficulty = ?,
-    tags = ?, ingredients = ?, steps = ?, notes = ?, photo = ? WHERE id = ? AND user_id = ?`).run(
-    title, emoji, category, cook, servings, difficulty, tags, ingredients, steps, notes, photo, id, req.uid);
+    tags = ?, ingredients = ?, seasonings = ?, steps = ?, prep = ?, sauces = ?, notes = ?, photo = ? WHERE id = ? AND user_id = ?`).run(
+    title, emoji, category, cook, servings, difficulty, tags, ingredients, seasonings, steps, prep, sauces, notes, photo, id, req.uid);
   res.json(recipeOut(db.prepare('SELECT * FROM recipes WHERE id = ?').get(id)));
 }));
 
