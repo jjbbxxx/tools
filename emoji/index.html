@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Emoji 拼图 · 图片转 emoji 马赛克</title>
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧩</text></svg>">
+    <style>
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        :root {
+            --text: #1d1d27;
+            --text-sub: #5b5b6b;
+            --accent: #5b7cff;
+            --accent-2: #8a5bff;
+            --radius: 24px;
+        }
+
+        html, body { margin: 0; min-height: 100%; overflow-x: hidden; }
+
+        body {
+            font-family: "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            color: var(--text);
+            padding: 0 16px 100px;
+            min-height: 100vh;
+            background: #F2F2F7;
+        }
+        /* 固定背景层：用独立的 fixed 元素铺渐变，避开 Safari 上
+           background-attachment:fixed + backdrop-filter 产生的残影 bug */
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            background:
+                radial-gradient(circle at 0% 0%, rgba(200, 220, 255, 0.85), transparent 55%),
+                radial-gradient(circle at 100% 0%, rgba(240, 210, 255, 0.7), transparent 50%),
+                radial-gradient(circle at 50% 100%, rgba(210, 255, 240, 0.6), transparent 55%),
+                #F2F2F7;
+        }
+
+        .wrap { max-width: 760px; margin: 0 auto; width: 100%; }
+
+        /* 顶部返回 + 标题 */
+        .topbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 22px 4px 20px;
+            min-width: 0;
+        }
+        .back {
+            width: 40px; height: 40px;
+            flex: 0 0 40px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            text-decoration: none;
+            font-size: 22px; line-height: 1;
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.85);
+            box-shadow: 0 6px 18px -8px rgba(60, 70, 120, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        }
+        .titles { min-width: 0; }
+        .titles h1 { margin: 0; font-size: 1.5rem; letter-spacing: -0.5px; }
+        .titles p { margin: 2px 0 0; font-size: 0.85rem; color: var(--text-sub); }
+
+        /* 实心白卡（不用毛玻璃，彻底避开 Safari backdrop-filter 残影） */
+        .glass {
+            background: rgba(255, 255, 255, 0.78);
+            border-radius: var(--radius);
+            border: 1px solid rgba(255, 255, 255, 0.85);
+            box-shadow:
+                0 18px 40px -18px rgba(60, 70, 120, 0.22),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        }
+
+        .card { padding: 18px; margin-bottom: 16px; overflow: hidden; }
+
+        /* 上传投放区 —— 不画任何边框（外层白卡已提供结构，删掉怪框） */
+        .drop {
+            border-radius: 16px;
+            padding: 30px 18px;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+        .drop:active { transform: scale(0.99); }
+        .drop.drag { background-color: rgba(91, 124, 255, 0.12); }
+        .drop .emoji { font-size: 40px; }
+        .drop .big { margin: 10px 0 4px; font-size: 1rem; font-weight: 600; }
+        .drop .sub { font-size: 0.82rem; color: var(--text-sub); }
+        input[type=file] { display: none; }
+
+        /* 控制面板 */
+        .row {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 2px;
+            border-bottom: 1px solid rgba(120, 120, 140, 0.12);
+            min-width: 0;
+        }
+        .row:last-child { border-bottom: none; }
+        .row .label { flex: 0 0 64px; font-size: 0.9rem; font-weight: 600; }
+        .row .val { flex: 0 0 40px; text-align: right; font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 600; }
+
+        input[type=range] {
+            flex: 1; min-width: 0; -webkit-appearance: none; appearance: none;
+            height: 6px; border-radius: 6px;
+            background: linear-gradient(90deg, var(--accent), var(--accent-2));
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 26px; height: 26px; border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+            cursor: pointer;
+        }
+
+        /* 分段控件 */
+        .seg { display: flex; flex: 1; min-width: 0; background: rgba(120, 120, 140, 0.12); border-radius: 12px; padding: 3px; gap: 3px; }
+        .seg button {
+            flex: 1; min-width: 0; border: none; background: transparent; cursor: pointer;
+            padding: 8px 4px; border-radius: 9px; font-size: 0.82rem; font-weight: 600;
+            color: var(--text-sub); font-family: inherit; transition: all 0.15s;
+        }
+        .seg button.on { background: #fff; color: var(--text); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1); }
+
+        /* 结果预览 */
+        .stage { padding: 14px; text-align: center; }
+        .stage .hint { color: var(--text-sub); font-size: 0.85rem; padding: 30px 0; }
+        #outCanvas {
+            max-width: 100%; height: auto; border-radius: 14px;
+            box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.25);
+            display: none;
+        }
+        .checker {
+            background-image:
+                linear-gradient(45deg, #e9e9ef 25%, transparent 25%),
+                linear-gradient(-45deg, #e9e9ef 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #e9e9ef 75%),
+                linear-gradient(-45deg, transparent 75%, #e9e9ef 75%);
+            background-size: 18px 18px;
+            background-position: 0 0, 0 9px, 9px -9px, -9px 0;
+        }
+
+        /* 底部操作栏 */
+        .actions {
+            position: fixed; left: 0; right: 0; bottom: 0;
+            padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+            background: linear-gradient(to top, rgba(242, 242, 247, 0.92), rgba(242, 242, 247, 0));
+            z-index: 20;
+        }
+        .actions .inner { max-width: 760px; margin: 0 auto; width: 100%; display: flex; gap: 12px; }
+
+        /* 液态玻璃按钮 */
+        /* 薄磨砂玻璃胶囊：半透明 + 顶部亮边 + 底部厚度 + 浮起投影 */
+        .btn {
+            flex: 1; min-width: 0; border: none; cursor: pointer; font-family: inherit;
+            padding: 16px; border-radius: 999px; font-size: 1rem; font-weight: 700;
+            -webkit-backdrop-filter: blur(12px) saturate(180%);
+            backdrop-filter: blur(12px) saturate(180%);
+            transition: transform 0.1s, opacity 0.2s;
+        }
+        .btn:active { transform: scale(0.97); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn.primary {
+            background: rgba(91, 124, 255, 0.6);
+            color: #fff;
+            box-shadow:
+                0 8px 20px -6px rgba(91, 124, 255, 0.5),        /* 浮起 */
+                inset 0 1px 1px rgba(255, 255, 255, 0.7),        /* 顶部亮边 */
+                inset 0 -6px 12px -8px rgba(30, 20, 90, 0.55);   /* 底部厚度 */
+        }
+        .btn.ghost {
+            background: rgba(255, 255, 255, 0.5);
+            color: var(--text);
+            box-shadow:
+                0 6px 16px -8px rgba(60, 70, 120, 0.25),
+                inset 0 1px 1px rgba(255, 255, 255, 0.9),
+                inset 0 -6px 12px -8px rgba(90, 100, 140, 0.3);
+        }
+
+        .status { text-align: center; font-size: 0.82rem; color: var(--text-sub); min-height: 18px; margin-top: 4px; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <div class="topbar">
+            <a class="back" href="/" aria-label="返回首页">‹</a>
+            <div class="titles">
+                <h1>Emoji 拼图</h1>
+                <p>把照片用 iOS emoji 拼出来</p>
+            </div>
+        </div>
+
+        <!-- 上传 -->
+        <div class="card glass">
+            <label class="drop" id="drop" for="file">
+                <div class="emoji">🖼️</div>
+                <div class="big">点这里选图片</div>
+                <div class="sub">或拖拽 / 粘贴图片到这里</div>
+            </label>
+            <input type="file" id="file" accept="image/*">
+        </div>
+
+        <!-- 控制面板 -->
+        <div class="card glass" id="panel">
+            <div class="row">
+                <span class="label">精细度</span>
+                <input type="range" id="density" min="24" max="150" value="70">
+                <span class="val" id="densityVal">70</span>
+            </div>
+            <div class="row">
+                <span class="label">自由度</span>
+                <input type="range" id="loose" min="0" max="100" value="45">
+                <span class="val" id="looseVal">45</span>
+            </div>
+            <div class="row">
+                <span class="label">背景</span>
+                <div class="seg" id="bgSeg">
+                    <button data-bg="white">白底</button>
+                    <button data-bg="black">黑底</button>
+                    <button data-bg="color" class="on">原图色</button>
+                    <button data-bg="transparent">透明</button>
+                </div>
+            </div>
+            <div class="row">
+                <span class="label">清晰度</span>
+                <div class="seg" id="resSeg">
+                    <button data-res="20">标准</button>
+                    <button data-res="30" class="on">高清</button>
+                    <button data-res="44">超清</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 预览 -->
+        <div class="card glass stage">
+            <canvas id="outCanvas"></canvas>
+            <div class="hint" id="stageHint">还没有结果，选一张图片就会自动生成 👆</div>
+        </div>
+
+        <div class="status" id="status"></div>
+    </div>
+
+    <!-- 底部操作 -->
+    <div class="actions">
+        <div class="inner">
+            <button class="btn ghost" id="regenBtn" disabled>重新生成</button>
+            <button class="btn primary" id="dlBtn" disabled>保存图片</button>
+        </div>
+    </div>
+
+    <script>
+        // ===== 苹果 emoji 图集参数 =====
+        const SHEET_SRC = 'assets/sheet32.png';
+        const GRID = 62;      // 62 × 62 网格
+        const PITCH = 34;     // 每格间距（32 图 + 1px 边 ×2）
+        const CELL = 32;      // 单个 emoji 像素尺寸
+        const BORDER = 1;     // 边距
+        const COVERAGE_MIN = 0.5; // 不透明像素占比阈值，滤掉稀疏 / 空白格
+
+        // ===== 全局状态 =====
+        let sheetImg = null;      // 已加载的图集 Image
+        let palette = [];         // [{gx,gy,r,g,b}]
+        let sourceImg = null;     // 用户上传的图片
+        let opts = { bg: 'color', res: 30, loose: 45 };
+
+        const $ = (id) => document.getElementById(id);
+        const statusEl = $('status');
+        const setStatus = (t) => { statusEl.textContent = t || ''; };
+
+        function loadImage(src) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error('图片加载失败: ' + src));
+                img.src = src;
+            });
+        }
+
+        // ===== 从图集算出调色板（只跑一次）=====
+        async function buildPalette() {
+            setStatus('正在加载 emoji 素材…');
+            sheetImg = await loadImage(SHEET_SRC);
+            const c = document.createElement('canvas');
+            c.width = sheetImg.width;
+            c.height = sheetImg.height;
+            const cx = c.getContext('2d', { willReadFrequently: true });
+            cx.drawImage(sheetImg, 0, 0);
+
+            let data;
+            try {
+                data = cx.getImageData(0, 0, c.width, c.height).data;
+            } catch (e) {
+                throw new Error('无法读取素材像素，请通过本地服务器打开（见说明）');
+            }
+
+            const W = c.width;
+            const built = [];
+            for (let gy = 0; gy < GRID; gy++) {
+                for (let gx = 0; gx < GRID; gx++) {
+                    const ox = gx * PITCH + BORDER;
+                    const oy = gy * PITCH + BORDER;
+                    let r = 0, g = 0, b = 0, opaque = 0;
+                    for (let y = 0; y < CELL; y++) {
+                        let idx = ((oy + y) * W + ox) * 4;
+                        for (let x = 0; x < CELL; x++, idx += 4) {
+                            if (data[idx + 3] > 128) {
+                                r += data[idx];
+                                g += data[idx + 1];
+                                b += data[idx + 2];
+                                opaque++;
+                            }
+                        }
+                    }
+                    if (opaque > 0 && opaque / (CELL * CELL) >= COVERAGE_MIN) {
+                        built.push({ gx, gy, r: r / opaque, g: g / opaque, b: b / opaque });
+                    }
+                }
+            }
+            palette = built;
+            setStatus(`已就绪 · ${palette.length} 个 emoji 可用`);
+        }
+
+        // ===== 颜色距离（redmean，感知更准）=====
+        function nearest(r, g, b) {
+            let best = null, bestD = Infinity;
+            for (let i = 0; i < palette.length; i++) {
+                const p = palette[i];
+                const rm = (r + p.r) * 0.5;
+                const dr = r - p.r, dg = g - p.g, db = b - p.b;
+                const d = (2 + rm / 256) * dr * dr + 4 * dg * dg + (2 + (255 - rm) / 256) * db * db;
+                if (d < bestD) { bestD = d; best = p; }
+            }
+            return best;
+        }
+
+        function shuffle(a) {
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = (Math.random() * (i + 1)) | 0;
+                const t = a[i]; a[i] = a[j]; a[j] = t;
+            }
+        }
+
+        // ===== 生成拼贴 =====
+        function generate() {
+            if (!sourceImg || !palette.length) return;
+            const t0 = performance.now();
+
+            const cols = parseInt($('density').value, 10);
+            const rows = Math.max(1, Math.round(cols * sourceImg.height / sourceImg.width));
+
+            // 把原图降采样成 cols × rows，每个像素 = 一处的目标色
+            const sc = document.createElement('canvas');
+            sc.width = cols; sc.height = rows;
+            const scx = sc.getContext('2d', { willReadFrequently: true });
+            scx.drawImage(sourceImg, 0, 0, cols, rows);
+            const sd = scx.getImageData(0, 0, cols, rows).data;
+
+            const TILE = opts.res;
+            const out = $('outCanvas');
+            out.width = cols * TILE;
+            out.height = rows * TILE;
+            const ocx = out.getContext('2d');
+
+            if (opts.bg === 'white') { ocx.fillStyle = '#fff'; ocx.fillRect(0, 0, out.width, out.height); }
+            else if (opts.bg === 'black') { ocx.fillStyle = '#000'; ocx.fillRect(0, 0, out.width, out.height); }
+
+            // 自由度：控制随机位移 / 旋转 / 大小的强度（emoji 选色不变，只有摆放随机）
+            const L = opts.loose / 100;
+            const idxOf = (x, y) => (y * cols + x) * 4;
+            const jitter = TILE * L * 0.55;      // 位置抖动上限
+            const maxRot = L * 0.5;              // 旋转上限（弧度，约 29°）
+            const baseSize = TILE * (1.18 + L * 0.22); // 放大到略大于格子，交错叠放不留缝
+            const scaleVar = L * 0.5;            // 大小随机幅度
+
+            // 原图色打底（先铺满，否则会盖住已放的 emoji）
+            if (opts.bg === 'color') {
+                for (let y = 0; y < rows; y++) {
+                    for (let x = 0; x < cols; x++) {
+                        const i = idxOf(x, y);
+                        ocx.fillStyle = `rgb(${sd[i]},${sd[i + 1]},${sd[i + 2]})`;
+                        ocx.fillRect(x * TILE, y * TILE, TILE, TILE);
+                    }
+                }
+            }
+
+            // 放置点：主格点 + 半格错位点（格角）交错，数量翻倍、叠放填满缝隙
+            const half = TILE / 2;
+            const pts = [];
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    pts.push([x * TILE + half, y * TILE + half]); // 主格点
+                    pts.push([x * TILE + TILE, y * TILE + TILE]); // 错位点（四格公共角）
+                }
+            }
+            shuffle(pts);
+
+            // 按画布坐标采样对应格子的颜色
+            const sampleAt = (px, py) => {
+                let sx = (px / TILE) | 0; if (sx < 0) sx = 0; else if (sx >= cols) sx = cols - 1;
+                let sy = (py / TILE) | 0; if (sy < 0) sy = 0; else if (sy >= rows) sy = rows - 1;
+                return (sy * cols + sx) * 4;
+            };
+
+            const cache = new Map();
+            for (let n = 0; n < pts.length; n++) {
+                let cx = pts[n][0], cy = pts[n][1];
+                const i = sampleAt(cx, cy);
+                if (sd[i + 3] < 20 && opts.bg === 'transparent') continue;
+                const r = sd[i], g = sd[i + 1], b = sd[i + 2];
+                const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+                let pe = cache.get(key);
+                if (pe === undefined) { pe = nearest(r, g, b); cache.set(key, pe); }
+
+                if (L > 0) {
+                    cx += (Math.random() * 2 - 1) * jitter;
+                    cy += (Math.random() * 2 - 1) * jitter;
+                }
+                const size = baseSize * (1 + (Math.random() * 2 - 1) * scaleVar);
+                const rot = L > 0 ? (Math.random() * 2 - 1) * maxRot : 0;
+
+                const sx = pe.gx * PITCH + BORDER, sy = pe.gy * PITCH + BORDER;
+                if (rot === 0) {
+                    ocx.drawImage(sheetImg, sx, sy, CELL, CELL, cx - size / 2, cy - size / 2, size, size);
+                } else {
+                    ocx.save();
+                    ocx.translate(cx, cy);
+                    ocx.rotate(rot);
+                    ocx.drawImage(sheetImg, sx, sy, CELL, CELL, -size / 2, -size / 2, size, size);
+                    ocx.restore();
+                }
+            }
+
+            out.classList.toggle('checker', opts.bg === 'transparent');
+            out.style.display = 'block';
+            $('stageHint').classList.add('hidden');
+            $('dlBtn').disabled = false;
+            $('regenBtn').disabled = false;
+            const ms = Math.round(performance.now() - t0);
+            setStatus(`${cols} × ${rows} · ${out.width}×${out.height}px · ${ms}ms`);
+        }
+
+        // ===== 载入用户图片 =====
+        async function handleFile(file) {
+            if (!file || !file.type.startsWith('image/')) { setStatus('请选择图片文件'); return; }
+            const url = URL.createObjectURL(file);
+            try {
+                sourceImg = await loadImage(url);
+                generate();
+            } catch (e) {
+                setStatus(e.message);
+            } finally {
+                URL.revokeObjectURL(url);
+            }
+        }
+
+        // ===== 事件绑定 =====
+        const drop = $('drop');
+        $('file').addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+        ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => {
+            e.preventDefault(); drop.classList.add('drag');
+        }));
+        ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => {
+            e.preventDefault(); drop.classList.remove('drag');
+        }));
+        drop.addEventListener('drop', (e) => {
+            const f = e.dataTransfer.files && e.dataTransfer.files[0];
+            if (f) handleFile(f);
+        });
+
+        window.addEventListener('paste', (e) => {
+            const items = e.clipboardData && e.clipboardData.items;
+            if (!items) return;
+            for (const it of items) {
+                if (it.type.startsWith('image/')) { handleFile(it.getAsFile()); break; }
+            }
+        });
+
+        // 滑块：拖动实时显示数字，松手才重新生成（避免卡顿）
+        function bindSlider(id, valId, key) {
+            const el = $(id);
+            el.addEventListener('input', () => { $(valId).textContent = el.value; if (key) opts[key] = parseInt(el.value, 10); });
+            el.addEventListener('change', () => { if (sourceImg) generate(); });
+        }
+        bindSlider('density', 'densityVal', null);
+        bindSlider('loose', 'looseVal', 'loose');
+
+        // 分段控件通用处理
+        function bindSeg(segId, key, cast) {
+            $(segId).addEventListener('click', (e) => {
+                const btn = e.target.closest('button');
+                if (!btn) return;
+                [...e.currentTarget.children].forEach(b => b.classList.remove('on'));
+                btn.classList.add('on');
+                opts[key] = cast(btn.dataset[key]);
+                if (sourceImg) generate();
+            });
+        }
+        bindSeg('bgSeg', 'bg', (v) => v);
+        bindSeg('resSeg', 'res', (v) => parseInt(v, 10));
+
+        $('regenBtn').addEventListener('click', generate);
+
+        $('dlBtn').addEventListener('click', () => {
+            $('outCanvas').toBlob((blob) => {
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'emoji-mosaic.png';
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+            }, 'image/png');
+        });
+
+        // ===== 启动 =====
+        buildPalette().catch((e) => setStatus('出错：' + e.message));
+    </script>
+</body>
+
+</html>

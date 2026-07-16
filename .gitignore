@@ -7,6 +7,10 @@ nutrition_images/
 *.jpg
 *.png
 
+# 例外：emoji 拼图工具的苹果 emoji 图集素材需要入库部署
+!emoji/assets/
+!emoji/assets/sheet32.png
+
 # 做事记录后端：依赖、密钥、数据库不入库
 server/node_modules/
 server/.env
