@@ -10,6 +10,7 @@
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧩</text></svg>">
     <style>
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        [hidden] { display: none !important; }
 
         :root {
             --text: #1d1d27;
@@ -186,6 +187,36 @@
 
         .status { text-align: center; font-size: 0.82rem; color: var(--text-sub); min-height: 18px; margin-top: 4px; }
         .hidden { display: none !important; }
+
+        /* 裁剪原图（可选）*/
+        .croptoggle { display: block; width: 100%; margin: -4px 0 16px; padding: 13px; border-radius: 16px; border: 1px dashed rgba(120, 130, 200, 0.5); background: rgba(255, 255, 255, 0.5); color: var(--text); font-weight: 600; font-family: inherit; font-size: 0.92rem; cursor: pointer; transition: transform 0.1s; }
+        .croptoggle:active { transform: scale(0.99); }
+        .croptoggle.active { background: rgba(91, 124, 255, 0.12); border-style: solid; border-color: var(--accent); color: var(--accent); }
+        .cardhead { font-size: 0.95rem; font-weight: 700; margin-bottom: 12px; }
+        .cardhead span { font-size: 0.78rem; color: var(--text-sub); font-weight: 500; margin-left: 6px; }
+        .cropwrap { text-align: center; }
+        .cropstage { position: relative; display: inline-block; max-width: 100%; line-height: 0; border-radius: 12px; overflow: hidden; touch-action: none; }
+        #cropImg { display: block; max-width: 100%; max-height: 46vh; user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
+        .cropbox { position: absolute; box-sizing: border-box; border: 1.5px solid rgba(255, 255, 255, 0.95); box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.42); cursor: move; touch-action: none; }
+        .cropbox .hd { position: absolute; width: 24px; height: 24px; box-sizing: border-box; touch-action: none; }
+        .cropbox .hd.tl { left: -2px; top: -2px; border-left: 3px solid #fff; border-top: 3px solid #fff; border-top-left-radius: 5px; cursor: nwse-resize; }
+        .cropbox .hd.tr { right: -2px; top: -2px; border-right: 3px solid #fff; border-top: 3px solid #fff; border-top-right-radius: 5px; cursor: nesw-resize; }
+        .cropbox .hd.bl { left: -2px; bottom: -2px; border-left: 3px solid #fff; border-bottom: 3px solid #fff; border-bottom-left-radius: 5px; cursor: nesw-resize; }
+        .cropbox .hd.br { right: -2px; bottom: -2px; border-right: 3px solid #fff; border-bottom: 3px solid #fff; border-bottom-right-radius: 5px; cursor: nwse-resize; }
+        .minibtn { display: block; margin: 14px auto 0; padding: 9px 18px; border-radius: 999px; border: none; background: rgba(120, 120, 140, 0.16); color: var(--text); font-weight: 600; font-family: inherit; cursor: pointer; font-size: 0.85rem; }
+        .minibtn:active { transform: scale(0.97); }
+
+        /* 结果可点击放大 */
+        #outCanvas { cursor: zoom-in; }
+        .zoomcap { margin-top: 10px; font-size: 0.8rem; color: var(--text-sub); }
+
+        /* 放大预览 */
+        .lightbox { position: fixed; inset: 0; z-index: 50; background: rgba(10, 12, 20, 0.92); }
+        .lbstage { position: absolute; inset: 0; overflow: hidden; touch-action: none; }
+        #lbImg { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; user-select: none; -webkit-user-select: none; -webkit-user-drag: none; cursor: grab; }
+        #lbImg.grabbing { cursor: grabbing; }
+        .lbclose { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 16px; z-index: 2; width: 42px; height: 42px; border-radius: 50%; border: none; background: rgba(255, 255, 255, 0.16); color: #fff; font-size: 19px; cursor: pointer; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+        .lbhint { position: absolute; bottom: calc(16px + env(safe-area-inset-bottom)); left: 0; right: 0; text-align: center; color: rgba(255, 255, 255, 0.7); font-size: 0.8rem; pointer-events: none; }
     </style>
 </head>
 
@@ -207,6 +238,24 @@
                 <div class="sub">或拖拽 / 粘贴图片到这里</div>
             </label>
             <input type="file" id="file" accept="image/*">
+        </div>
+
+        <!-- 裁剪原图（可选）-->
+        <button class="croptoggle" id="cropToggle" hidden>✂️ 裁剪原图（可选）</button>
+        <div class="card glass" id="cropCard" hidden>
+            <div class="cardhead">裁剪原图<span>拖动方框移动，四角缩放</span></div>
+            <div class="cropwrap">
+                <div class="cropstage" id="cropStage">
+                    <img id="cropImg" alt="原图">
+                    <div class="cropbox" id="cropBox">
+                        <i class="hd tl" data-h="tl"></i>
+                        <i class="hd tr" data-h="tr"></i>
+                        <i class="hd bl" data-h="bl"></i>
+                        <i class="hd br" data-h="br"></i>
+                    </div>
+                </div>
+            </div>
+            <button class="minibtn" id="cropReset">全选整张</button>
         </div>
 
         <!-- 控制面板 -->
@@ -244,6 +293,7 @@
         <div class="card glass stage">
             <canvas id="outCanvas"></canvas>
             <div class="hint" id="stageHint">还没有结果，选一张图片就会自动生成 👆</div>
+            <div class="zoomcap" id="zoomCap" hidden>点击图片可放大查看</div>
         </div>
 
         <div class="status" id="status"></div>
@@ -255,6 +305,15 @@
             <button class="btn ghost" id="regenBtn" disabled>重新生成</button>
             <button class="btn primary" id="dlBtn" disabled>保存图片</button>
         </div>
+    </div>
+
+    <!-- 放大预览 -->
+    <div class="lightbox" id="lightbox" hidden>
+        <button class="lbclose" id="lbClose" aria-label="关闭">✕</button>
+        <div class="lbstage" id="lbStage">
+            <img id="lbImg" alt="放大预览" draggable="false">
+        </div>
+        <div class="lbhint">滚轮 / 双指缩放 · 双击放大 · 拖动平移</div>
     </div>
 
     <script>
@@ -271,6 +330,9 @@
         let palette = [];         // [{gx,gy,r,g,b}]
         let sourceImg = null;     // 用户上传的图片
         let opts = { bg: 'color', res: 30, loose: 45 };
+        let cropRect = { x: 0, y: 0, w: 1, h: 1 }; // 归一化裁剪范围（相对原图）
+        let srcUrl = null, lbUrl = null;
+        const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
         const $ = (id) => document.getElementById(id);
         const statusEl = $('status');
@@ -355,14 +417,20 @@
             if (!sourceImg || !palette.length) return;
             const t0 = performance.now();
 
-            const cols = parseInt($('density').value, 10);
-            const rows = Math.max(1, Math.round(cols * sourceImg.height / sourceImg.width));
+            // 裁剪后的原图子区域（默认整张）
+            const sx0 = Math.round(cropRect.x * sourceImg.width);
+            const sy0 = Math.round(cropRect.y * sourceImg.height);
+            const sw = Math.max(1, Math.round(cropRect.w * sourceImg.width));
+            const sh = Math.max(1, Math.round(cropRect.h * sourceImg.height));
 
-            // 把原图降采样成 cols × rows，每个像素 = 一处的目标色
+            const cols = parseInt($('density').value, 10);
+            const rows = Math.max(1, Math.round(cols * sh / sw));
+
+            // 把（裁剪后的）原图降采样成 cols × rows，每个像素 = 一处的目标色
             const sc = document.createElement('canvas');
             sc.width = cols; sc.height = rows;
             const scx = sc.getContext('2d', { willReadFrequently: true });
-            scx.drawImage(sourceImg, 0, 0, cols, rows);
+            scx.drawImage(sourceImg, sx0, sy0, sw, sh, 0, 0, cols, rows);
             const sd = scx.getImageData(0, 0, cols, rows).data;
 
             const TILE = opts.res;
@@ -445,6 +513,7 @@
             $('stageHint').classList.add('hidden');
             $('dlBtn').disabled = false;
             $('regenBtn').disabled = false;
+            $('zoomCap').hidden = false;
             const ms = Math.round(performance.now() - t0);
             setStatus(`${cols} × ${rows} · ${out.width}×${out.height}px · ${ms}ms`);
         }
@@ -454,14 +523,174 @@
             if (!file || !file.type.startsWith('image/')) { setStatus('请选择图片文件'); return; }
             const url = URL.createObjectURL(file);
             try {
-                sourceImg = await loadImage(url);
+                const img = await loadImage(url);
+                if (srcUrl) URL.revokeObjectURL(srcUrl);
+                srcUrl = url;
+                sourceImg = img;
+                cropRect = { x: 0, y: 0, w: 1, h: 1 };
+                setupCrop(url);
                 generate();
             } catch (e) {
-                setStatus(e.message);
-            } finally {
                 URL.revokeObjectURL(url);
+                setStatus(e.message);
             }
         }
+
+        // ===== 裁剪原图（可选）=====
+        function layoutCropBox() {
+            const b = $('cropBox');
+            b.style.left = (cropRect.x * 100) + '%';
+            b.style.top = (cropRect.y * 100) + '%';
+            b.style.width = (cropRect.w * 100) + '%';
+            b.style.height = (cropRect.h * 100) + '%';
+        }
+        function setupCrop(url) {
+            $('cropImg').src = url;
+            $('cropToggle').hidden = false;
+            $('cropToggle').classList.remove('active');
+            $('cropToggle').textContent = '✂️ 裁剪原图（可选）';
+            $('cropCard').hidden = true;
+            layoutCropBox();
+        }
+        $('cropToggle').addEventListener('click', () => {
+            const show = $('cropCard').hidden;
+            $('cropCard').hidden = !show;
+            $('cropToggle').classList.toggle('active', show);
+            $('cropToggle').textContent = show ? '✓ 完成裁剪' : '✂️ 裁剪原图（可选）';
+            if (show) layoutCropBox();
+        });
+
+        let cropDrag = null;
+        function cropDown(e, mode) {
+            e.preventDefault(); e.stopPropagation();
+            const rect = $('cropStage').getBoundingClientRect();
+            cropDrag = { mode, rect, sx: e.clientX, sy: e.clientY, orig: { ...cropRect } };
+            window.addEventListener('pointermove', cropMove);
+            window.addEventListener('pointerup', cropUp);
+        }
+        function cropMove(e) {
+            if (!cropDrag) return;
+            const { mode, rect, sx, sy, orig } = cropDrag;
+            const dx = (e.clientX - sx) / rect.width;
+            const dy = (e.clientY - sy) / rect.height;
+            const MIN = 0.06;
+            let x = orig.x, y = orig.y, w = orig.w, h = orig.h;
+            if (mode === 'move') {
+                x = clamp(orig.x + dx, 0, 1 - w);
+                y = clamp(orig.y + dy, 0, 1 - h);
+            } else {
+                let x1 = orig.x, y1 = orig.y, x2 = orig.x + orig.w, y2 = orig.y + orig.h;
+                if (mode.includes('l')) x1 = clamp(orig.x + dx, 0, x2 - MIN);
+                if (mode.includes('r')) x2 = clamp(x2 + dx, x1 + MIN, 1);
+                if (mode.includes('t')) y1 = clamp(orig.y + dy, 0, y2 - MIN);
+                if (mode.includes('b')) y2 = clamp(y2 + dy, y1 + MIN, 1);
+                x = x1; y = y1; w = x2 - x1; h = y2 - y1;
+            }
+            cropRect = { x, y, w, h };
+            layoutCropBox();
+        }
+        function cropUp() {
+            if (!cropDrag) return;
+            cropDrag = null;
+            window.removeEventListener('pointermove', cropMove);
+            window.removeEventListener('pointerup', cropUp);
+            if (sourceImg) generate();
+        }
+        $('cropBox').addEventListener('pointerdown', (e) => cropDown(e, 'move'));
+        document.querySelectorAll('.cropbox .hd').forEach((h) => {
+            h.addEventListener('pointerdown', (e) => cropDown(e, h.dataset.h));
+        });
+        $('cropReset').addEventListener('click', () => {
+            cropRect = { x: 0, y: 0, w: 1, h: 1 };
+            layoutCropBox();
+            if (sourceImg) generate();
+        });
+
+        // ===== 放大预览（缩放 / 平移）=====
+        let lbScale = 1, lbTx = 0, lbTy = 0, lbMin = 1, lbNatW = 0, lbNatH = 0;
+        const lbPtrs = new Map();
+        let pinch = null;
+        const applyLb = () => { $('lbImg').style.transform = `translate(${lbTx}px,${lbTy}px) scale(${lbScale})`; };
+        function fitLb() {
+            const st = $('lbStage').getBoundingClientRect();
+            lbMin = Math.min(st.width / lbNatW, st.height / lbNatH) || 1;
+            lbScale = lbMin;
+            lbTx = (st.width - lbNatW * lbScale) / 2;
+            lbTy = (st.height - lbNatH * lbScale) / 2;
+            applyLb();
+        }
+        function zoomAt(cx, cy, factor) {
+            const ns = clamp(lbScale * factor, lbMin, lbMin * 14);
+            lbTx = cx - (cx - lbTx) * (ns / lbScale);
+            lbTy = cy - (cy - lbTy) * (ns / lbScale);
+            lbScale = ns;
+            applyLb();
+        }
+        function openLightbox() {
+            const out = $('outCanvas');
+            if (!out.width) return;
+            out.toBlob((blob) => {
+                if (lbUrl) URL.revokeObjectURL(lbUrl);
+                lbUrl = URL.createObjectURL(blob);
+                const img = $('lbImg');
+                img.onload = () => { lbNatW = img.naturalWidth; lbNatH = img.naturalHeight; fitLb(); };
+                img.src = lbUrl;
+                $('lightbox').hidden = false;
+                document.body.style.overflow = 'hidden';
+            }, 'image/png');
+        }
+        function closeLightbox() {
+            $('lightbox').hidden = true;
+            document.body.style.overflow = '';
+        }
+        $('outCanvas').addEventListener('click', openLightbox);
+        $('lbClose').addEventListener('click', closeLightbox);
+        window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeLightbox(); });
+        $('lbStage').addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const st = $('lbStage').getBoundingClientRect();
+            zoomAt(e.clientX - st.left, e.clientY - st.top, e.deltaY < 0 ? 1.12 : 1 / 1.12);
+        }, { passive: false });
+        $('lbStage').addEventListener('dblclick', (e) => {
+            const st = $('lbStage').getBoundingClientRect();
+            if (lbScale > lbMin * 1.5) fitLb();
+            else zoomAt(e.clientX - st.left, e.clientY - st.top, (lbMin * 3) / lbScale);
+        });
+        $('lbStage').addEventListener('pointerdown', (e) => {
+            $('lbStage').setPointerCapture(e.pointerId);
+            lbPtrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            if (lbPtrs.size === 2) {
+                const [a, b] = [...lbPtrs.values()];
+                pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), scale: lbScale };
+            }
+            $('lbImg').classList.add('grabbing');
+        });
+        $('lbStage').addEventListener('pointermove', (e) => {
+            if (!lbPtrs.has(e.pointerId)) return;
+            const prev = lbPtrs.get(e.pointerId);
+            const st = $('lbStage').getBoundingClientRect();
+            if (lbPtrs.size >= 2 && pinch) {
+                lbPtrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                const [a, b] = [...lbPtrs.values()];
+                const dist = Math.hypot(a.x - b.x, a.y - b.y);
+                const midx = (a.x + b.x) / 2 - st.left, midy = (a.y + b.y) / 2 - st.top;
+                const target = clamp(pinch.scale * (dist / pinch.dist), lbMin, lbMin * 14);
+                zoomAt(midx, midy, target / lbScale);
+            } else {
+                lbTx += e.clientX - prev.x;
+                lbTy += e.clientY - prev.y;
+                lbPtrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+                applyLb();
+            }
+        });
+        function lbUp(e) {
+            lbPtrs.delete(e.pointerId);
+            if (lbPtrs.size < 2) pinch = null;
+            if (lbPtrs.size === 0) $('lbImg').classList.remove('grabbing');
+        }
+        $('lbStage').addEventListener('pointerup', lbUp);
+        $('lbStage').addEventListener('pointercancel', lbUp);
+        window.addEventListener('resize', () => { if (!$('lightbox').hidden && lbNatW) fitLb(); });
 
         // ===== 事件绑定 =====
         const drop = $('drop');
